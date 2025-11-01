@@ -1,4 +1,4 @@
-NAME		= probit_original
+NAME		= probit
 CXX			= c++
 CXXFLAGS	= -Wall -Wextra -Werror -std=c++17
 
@@ -6,7 +6,7 @@ SRC_DIR		= src/
 OBJ_DIR		= obj/
 
 INCLUDES	= -I
-HEADERS		= InverseCumulativeNormal_original.h
+HEADERS		= InverseCumulativeNormal.h
 
 
 SRCS		= main.cpp

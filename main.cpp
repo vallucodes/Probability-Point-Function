@@ -1,7 +1,29 @@
 #include <iostream>
 #include <array>
+#include <chrono>
 
 #include "InverseCumulativeNormal.h"
+
+
+// benchmark result
+// Elapsed: 13058 ms  (avg 1305.8 ns/call)
+// Checksum: -4.02969e-09
+
+// int main() {
+// 	quant::InverseCumulativeNormal icn;
+// 	const int N = 10000000;
+// 	double sum = 0.0;
+
+// 	auto start = std::chrono::high_resolution_clock::now();
+// 	for (int i = 0; i < N; i++)
+// 		sum += icn((i + 0.5) / N);
+// 	auto end = std::chrono::high_resolution_clock::now();
+
+// 	double ms = std::chrono::duration<double, std::milli>(end - start).count();
+// 	std::cout << "Elapsed: " << ms << " ms  (avg " << (ms * 1e6 / N) << " ns/call)\n";
+// 	std::cout << "Checksum: " << sum << "\n";
+// 	return 0;
+// }
 
 int main() {
 	// --- Scalar usage ---
