@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 # samples: Training data samples amount
 # n: degree m/n
 # x_low, x_high: range for fitting
-def fitting(samples = 30, n = 8, x_low = 10e-16, x_high = 0.02):
-	# Distribute samples using Chebyshev logic -> more dense close to tail
+def fitting(samples = 35, n = 8, x_low = 10e-16, x_high = 0.02):
+	# Distribute samples using log spacing in range [10^-16, 0.002]
+	# using linear spacing in range ]0.002, 0.02]
 	samples_linear = samples // 3
 	samples_log = samples - samples_linear
 
@@ -22,23 +23,29 @@ def fitting(samples = 30, n = 8, x_low = 10e-16, x_high = 0.02):
 	xs_linear = xs_linear[1:]
 	xs = np.concatenate((xs_log, xs_linear))
 
-	print("xs:", xs)
+	# print("xs log:", xs_log)
+	# print("xs linear:", xs_linear)
+	# print("xs:", xs)
 
 	# Build samples
 	A = []
 	y = []
 	for x in xs:
 		z = norm.ppf(x)
-		u = x - 0.5
-		r = u * u
+		if x - 0.5 < 0:
+			s = -1
+		else:
+			s = 1
+		m = min(x, 1 - x)
+		t = np.sqrt(-2.0 * np.log(m))
 
 		# Build A and y arrays. y array = z array
 		Ai = []
 		for j in range(0, n + 1):
-			Ai.append(u * (r ** j))
+			Ai.append(s * (t ** j))
 
 		for j in range(1, n + 1):
-			Ai.append(-z * (r ** j))
+			Ai.append(-z * (t ** j))
 
 		A.append(Ai)
 		y.append(z)
@@ -48,89 +55,95 @@ def fitting(samples = 30, n = 8, x_low = 10e-16, x_high = 0.02):
 
 	# Add weights for samples nearing tail
 	weights = generate_weights(xs, x_low, x_high)
+	# print("weights:", weights)
+
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
+	# Solve linear equations with least square method
 	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
-	return theta, x_low
+	# print("theta:", theta)
+	return theta, x_low, n
 
-# Generate nodes based on Chebyshev grid -> more nodes close to tail for more accuracy
-# Optimization: use only upper half for fitting
-def chebyshev_nodes(n, x_low, x_high):
-	k = np.arange(n)
-	t = np.cos((k + 0.5) * np.pi / (2 * n))
-	x = x_low + t * (x_high - x_low)
-	return x
-
-# Generate weights for sample points near tail region
+# Generate weights for sample points at extreme tail and near-join points
 # This could be optimized
 def generate_weights(xs, x_low, x_high):
 
 	# Upper 30% is weighted linearly from 2 to 3.
 	# Value chosen by observing where function starts to curve
-	weighted_range_percentage = 0.3
+	weighted_range_percentage_extreme_tail = 0.3
+	weighted_range_percentage_near_join = 0.3
+
+	# Max and starting values for weightet x's
+	weight_start = 2.0
+	weight_max = 3.0
+	no_weight = 1.0
 
 	weights = []
 	sampling_range = x_high - x_low
-	upweight_start = x_high - weighted_range_percentage * sampling_range
+	x_low_end = x_low + weighted_range_percentage_extreme_tail * sampling_range
+	x_high_start = x_high - weighted_range_percentage_near_join * sampling_range
 
 	for x in xs:
-		if x > upweight_start:
-			w = 2.0 + 1.0 * (x - upweight_start) / (x_high - upweight_start)
+		if x <= x_low_end:
+			w = weight_start + (weight_max - weight_start) * (x_low_end - x) / (x_low_end - x_low)
 			weights.append(w)
-		else:
-			# Weight for the rest is 1
-			weights.append(1)
+		elif x > x_low_end and x < x_high_start:
+			weights.append(no_weight)
+		elif x >= x_high_start:
+			w = weight_start + (weight_max - weight_start) * (x - x_high_start) / (x_high - x_high_start)
+			weights.append(w)
 
 	return np.array(weights)
 
 # ----------------------------------------------------------------------------------
 # Validation starts here
 
-def	validation(theta, x_low, x_high=0.98):
-	# Calculate x ∈ [0.5, 0.98]
-	xs_validation_right = np.linspace(x_low, x_high, 1000)
-	z_real_right = norm.ppf(xs_validation_right)
-	z_approx_right = apply_approximation(xs_validation_right, theta, x_low, x_high)
-	error_right = z_real_right - z_approx_right
+def	validation(theta, x_low, x_high = 0.02):
 
-	# Calculate x ∈ [0.02, 0.5]
-	xs_validation_left = np.linspace(1 - x_high, x_low, 1000)
+	# Calculate x ∈ [10e-16, 0.02]
+	xs_validation_left = np.linspace(x_low, x_high, 1000)
 	z_real_left = norm.ppf(xs_validation_left)
-	# Symmetry around 0.5 used: Φ^(-1)(x) = -Φ^(-1)(1 - x)
-	z_approx_left = -apply_approximation(1 - xs_validation_left, theta, x_low, x_high)
+	z_approx_left = apply_approximation(xs_validation_left, theta)
 	error_left = z_real_left - z_approx_left
 
-	# Combine left and right: x ∈ [0.02, 0.98]
-	xs_all = np.concatenate((xs_validation_left, xs_validation_right[1:]))
-	z_real_all = np.concatenate((z_real_left, z_real_right[1:]))
-	z_approx_all = np.concatenate((z_approx_left, z_approx_right[1:]))
-	error_all = np.concatenate((error_left, error_right[1:]))
+
+	# Calculate x ∈ [0.98, 1 - 10e-16]
+	xs_validation_right = np.linspace(1 - x_high, 1 - x_low, 1000)
+	z_real_right = norm.ppf(xs_validation_right)
+	# Symmetry around 0.5 used: Φ^(-1)(x) = -Φ^(-1)(1 - x)
+	z_approx_right = -apply_approximation(1 - xs_validation_right, theta)
+	error_right = z_real_right - z_approx_right
 
 	# Error stats
-	print(f"Max absolute error: {np.max(np.abs(error_all)):.2e}")
-	print(f"Mean absolute error: {np.mean(np.abs(error_all)):.2e}")
-	return xs_all, z_real_all, z_approx_all, error_all, x_high
+	print(f"Max absolute error left: {np.max(np.abs(error_left)):.2e}")
+	print(f"Mean absolute error left: {np.mean(np.abs(error_left)):.2e}")
+
+	# print(f"Max absolute error right: {np.max(np.abs(error_right)):.2e}")
+	# print(f"Mean absolute error right: {np.mean(np.abs(error_right)):.2e}")
+	return xs_validation_left, z_real_left, z_approx_left, error_left, x_high
 
 # Calculate P and Q using Horner's method
-def apply_approximation(xs, theta, x_low, x_high):
+def apply_approximation(xs, theta):
 	n = (len(theta) - 1) // 2
-	u = xs - 0.5
-	r = u * u
+
+	s = -1
+	m = xs
+	t = np.sqrt(-2.0 * np.log(m))
 
 	P_coeffs = theta[:n+1]
 	Q_coeffs = theta[n+1:]
 
 	P = 0
 	for a in reversed(P_coeffs):
-		P = a + P * r
+		P = a + P * t
 
 	Q = 0
-	for a in reversed(Q_coeffs):
-		Q = a + Q * r
-	Q = 1 + Q * r
+	for b in reversed(Q_coeffs):
+		Q = b + Q * t
+	Q = 1 + Q * t
 
-	return u * (P / Q)
+	return s * (P / Q)
 
 def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	fig, axes = plt.subplots(2, 1, figsize=(10, 8))
@@ -140,7 +153,6 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	axes[0].plot(xs_all, z_approx_all, 'r--', label='Rational approx', linewidth=1.5)
 	axes[0].axvline(x_low, color='gray', linestyle=':', alpha=0.5, label='Join points')
 	axes[0].axvline(x_high, color='gray', linestyle=':', alpha=0.5)
-	axes[0].axvline(1 - x_high, color='gray', linestyle=':', alpha=0.5)
 	axes[0].set_xlabel('x')
 	axes[0].set_ylabel('Φ⁻¹(x)')
 	axes[0].set_title('Central Region Approximation')
@@ -161,10 +173,28 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	plt.tight_layout()
 	plt.show()
 
+def export(theta, x_low, x_high, n):
+	# Export coefficients for C++
+	m = n
+	print("\n" + "="*60)
+	print("C++ COEFFICIENT EXPORT")
+	print("="*60)
+	print(f"\n// Tail region rational approximation (m = {m}, n = {n})")
+	print(f"// Valid for x in [{x_low}, {x_high}]")
+	print("constexpr double tail_a[] = {")
+	for i, coef in enumerate(theta[:m+1]):
+		print(f"    {coef:.16e}{',' if i < m else ''}")
+	print("};")
+	print("\nconstexpr double tail_b[] = {")
+	for i, coef in enumerate(theta[m+1:]):
+		print(f"    {coef:.16e}{',' if i < n-1 else ''}")
+	print("};")
+
 def main():
-	theta, x_low = fitting()
+	theta, x_low, n = fitting()
 	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
-	plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	export(theta, x_low, x_high, n)
 
 if __name__ == "__main__":
 	main()

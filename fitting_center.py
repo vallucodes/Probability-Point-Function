@@ -38,8 +38,9 @@ def fitting(samples=200, n=8, x_low=0.5, x_high=0.999999):
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
+	# Solve linear equations with least square method
 	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
-	return theta, x_low
+	return theta, x_low, n
 
 # Generate nodes based on Chebyshev grid -> more nodes close to tail for more accuracy
 # Optimization: use only upper half for fitting
@@ -115,8 +116,8 @@ def apply_approximation(xs, theta, x_low, x_high):
 		P = a + P * r
 
 	Q = 0
-	for a in reversed(Q_coeffs):
-		Q = a + Q * r
+	for b in reversed(Q_coeffs):
+		Q = b + Q * r
 	Q = 1 + Q * r
 
 	return u * (P / Q)
@@ -150,10 +151,28 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	plt.tight_layout()
 	plt.show()
 
+def export(theta, x_low, x_high, n):
+	# Export coefficients for C++
+	m = n
+	print("\n" + "="*60)
+	print("C++ COEFFICIENT EXPORT")
+	print("="*60)
+	print(f"\n// Center region rational approximation (m = {m}, n = {n})")
+	print(f"// Valid for x in [{x_low}, {x_high}]")
+	print("constexpr double center_a[] = {")
+	for i, coef in enumerate(theta[:m+1]):
+		print(f"    {coef:.16e}{',' if i < m else ''}")
+	print("};")
+	print("\nconstexpr double center_b[] = {")
+	for i, coef in enumerate(theta[m+1:]):
+		print(f"    {coef:.16e}{',' if i < n-1 else ''}")
+	print("};")
+
 def main():
-	theta, x_low = fitting()
+	theta, x_low, n = fitting()
 	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
-	plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	export(theta, x_low, x_high, n)
 
 if __name__ == "__main__":
 	main()

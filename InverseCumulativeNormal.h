@@ -98,18 +98,73 @@ private:
 		return 0.5 * (lo + hi);
 	}
 
+	static inline double central_value_fast(double x) {
+		// Center region rational approximation (m = 8, n = 8)
+		// Valid for x in [0.5, 0.98]
+		constexpr double center_a[] = {
+			2.5066282777485149e+00,
+			-4.3170077232190792e+01,
+			2.8894237421187995e+02,
+			-9.1039065314534901e+02,
+			1.1915157857550817e+03,
+			4.0463762891090013e+01,
+			-8.8453647732874265e+02,
+			-6.3172703267590055e+02,
+			8.1798896463539131e+02
+		};
+
+		constexpr double center_b[] = {
+			-1.8269566221684713e+01,
+			1.3210023191782122e+02,
+			-4.6570425537124260e+02,
+			7.5421170706875250e+02,
+			-2.4339299340854464e+02,
+			-5.1237908556421576e+02,
+			-6.5600292540741108e+01,
+			5.5060171176853385e+02
+		};
+
+	}
+
+	static inline double tail_value_fast(double x) {
+		// Tail region rational approximation (m = 8, n = 8)
+		// Valid for x in [1e-15, 0.02]
+		constexpr double tail_a[] = {
+			-1.4453936962031595e+00,
+			5.3437725610366160e-01,
+			2.7485580086525579e-01,
+			-4.1960419129514329e-02,
+			1.0367545320728760e-01,
+			-7.0741870362246578e-02,
+			-3.2199914177129119e-01,
+			3.6027529698610544e-01,
+			5.7744261269094987e-02
+		};
+
+		constexpr double tail_b[] = {
+			-1.6858265128634287e-01,
+			9.5570917623519314e-01,
+			-3.8810197773723981e-01,
+			4.5056803404836981e-01,
+			-8.8167429736128899e-02,
+			3.6287243331601549e-01,
+			5.7701387291593187e-02,
+			4.5659896463767780e-07
+		};
+	}
+
 	// Baseline central-region value: currently just bisection.
 	static inline double central_value_baseline(double x) {
-		std::cout << "central_value_baseline()\n";
+		// std::cout << "central_value_baseline()\n";
 		// TODO(candidate): Replace with rational approximation around x≈0.5
-		return invert_bisect(x);
+		return central_value_fast(x);
 	}
 
 	// Baseline tail handler: currently just bisection (slow for extreme x).
 	static inline double tail_value_baseline(double x) {
-		std::cout << "tail_value_baseline()\n";
+		// std::cout << "tail_value_baseline()\n";
 		// TODO(candidate): Implement tail mapping t = sqrt(-2*log(m)) with rational in t
-		return invert_bisect(x);
+		return tail_value_fast(x);
 	}
 
 #ifdef ICN_ENABLE_HALLEY_REFINEMENT
