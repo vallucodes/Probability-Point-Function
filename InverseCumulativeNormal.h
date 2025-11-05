@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <iostream>
 
+#define ICN_ENABLE_HALLEY_REFINEMENT
+
 namespace quant {
 
 class InverseCumulativeNormal {
@@ -218,14 +220,38 @@ private:
 #ifdef ICN_ENABLE_HALLEY_REFINEMENT
 	// One-step Halley refinement (3rd order). Usually brings result to full double precision.
 	static inline double halley_refine(double z, double x) {
-		// r = (Φ(z) - x) / φ(z)
-		const double f = Phi(z);
-		const double p = phi(z);
-		const double r = (f - x) / std::max(p, std::numeric_limits<double>::min());
-		// Halley: z_{new} = z - r / (1 - 0.5*z*r)
-		const double denom = 1.0 - 0.5 * z * r;
-		return z - r / (denom != 0.0 ? denom
-									: std::copysign(std::numeric_limits<double>::infinity(), denom));
+		// Canter region
+		if (x > 10^-8 && x < 1 - 10^-8)
+		{
+			// r = (Φ(z) - x) / φ(z)
+			const double f = Phi(z);
+			const double p = phi(z);
+			const double r = (f - x) / std::max(p, std::numeric_limits<double>::min());
+			// Halley: z_{new} = z - r / (1 - 0.5*z*r)
+			const double denom = 1.0 - 0.5 * z * r;
+			return z - r / (denom != 0.0 ? denom
+										: std::copysign(std::numeric_limits<double>::infinity(), denom));
+		}
+		// Right tail
+		else if (x >= 1 - 10^-8)
+		{
+			const double y = 1 - x;
+			const double phi_val = phi(z);
+			const double Q = 1 - Phi(z);
+			const double numerator = y * expm1(std::log(Q) - std::log(y));
+			const double r = -numerator / phi_val;
+			return r;
+		}
+		// Left tail
+		else
+		{
+			const double y = x;
+			const double phi_val = phi(z);
+			const double Q = 1 - Phi(z);
+			const double numerator = y * expm1(std::log(Q) - std::log(y));
+			const double r = numerator / phi_val;
+			return r;
+		}
 	}
 #endif
 
