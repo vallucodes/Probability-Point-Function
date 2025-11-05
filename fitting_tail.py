@@ -181,11 +181,11 @@ def export(theta, x_low, x_high, n):
 	print("="*60)
 	print(f"\n// Tail region rational approximation (m = {m}, n = {n})")
 	print(f"// Valid for x in [{x_low}, {x_high}]")
-	print("constexpr double tail_a[] = {")
+	print("constexpr double C_coeffs[] = {")
 	for i, coef in enumerate(theta[:m+1]):
 		print(f"    {coef:.16e}{',' if i < m else ''}")
 	print("};")
-	print("\nconstexpr double tail_b[] = {")
+	print("constexpr double D_coeffs[] = {")
 	for i, coef in enumerate(theta[m+1:]):
 		print(f"    {coef:.16e}{',' if i < n-1 else ''}")
 	print("};")

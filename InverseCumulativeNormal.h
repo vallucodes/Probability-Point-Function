@@ -100,8 +100,9 @@ private:
 
 	static inline double central_value_fast(double x) {
 		// Center region rational approximation (m = 8, n = 8)
-		// Valid for x in [0.5, 0.98]
-		constexpr double center_a[] = {
+		// Valid for x in [0.02, 0.98]
+		// TODO check which one to use at boundary 0.02/////////////////////////////////////
+		constexpr std::array<double, 9> P_coeffs = {
 			2.5066282777485149e+00,
 			-4.3170077232190792e+01,
 			2.8894237421187995e+02,
@@ -112,8 +113,7 @@ private:
 			-6.3172703267590055e+02,
 			8.1798896463539131e+02
 		};
-
-		constexpr double center_b[] = {
+		constexpr std::array<double, 8> Q_coeffs = {
 			-1.8269566221684713e+01,
 			1.3210023191782122e+02,
 			-4.6570425537124260e+02,
@@ -124,12 +124,36 @@ private:
 			5.5060171176853385e+02
 		};
 
+		double u = x - 0.5;
+		double r = u * u;
+
+		double P = 0.0;
+		auto it = P_coeffs.end();
+		while (it != P_coeffs.begin())
+		{
+			--it;
+			P = *it + P * r;
+		}
+		// std::cout << "P: " << P << std::endl;
+
+		double Q = 0.0;
+		it = Q_coeffs.end();
+		while (it != Q_coeffs.begin())
+		{
+			--it;
+			Q = *it + Q * r;
+		}
+		Q = 1 + Q * r;
+		// std::cout << "Q: " << Q << std::endl;
+
+		return u * P / Q;
 	}
 
 	static inline double tail_value_fast(double x) {
 		// Tail region rational approximation (m = 8, n = 8)
-		// Valid for x in [1e-15, 0.02]
-		constexpr double tail_a[] = {
+		// Valid for x in [10e-16, 0.02] and [0.98, 1 - 10e-16]
+		// TODO check which one to use at boundary 0.02/////////////////////////////////////
+		constexpr std::array<double, 9> C_coeffs = {
 			-1.4453936962031595e+00,
 			5.3437725610366160e-01,
 			2.7485580086525579e-01,
@@ -140,8 +164,7 @@ private:
 			3.6027529698610544e-01,
 			5.7744261269094987e-02
 		};
-
-		constexpr double tail_b[] = {
+		constexpr std::array<double, 8> D_coeffs = {
 			-1.6858265128634287e-01,
 			9.5570917623519314e-01,
 			-3.8810197773723981e-01,
@@ -151,19 +174,44 @@ private:
 			5.7701387291593187e-02,
 			4.5659896463767780e-07
 		};
+
+		double m = std::min(x, 1 - x);
+		double t = std::sqrt(-2 * std::log(m));
+		double s = std::copysign(1.0, x - 0.5);
+
+		double C = 0.0;
+		auto it = C_coeffs.end();
+		while (it != C_coeffs.begin())
+		{
+			--it;
+			C = *it + C * t;
+		}
+		// std::cout << "C: " << C << std::endl;
+
+		double D = 0.0;
+		it = D_coeffs.end();
+		while (it != D_coeffs.begin())
+		{
+			--it;
+			D = *it + D * t;
+		}
+		D = 1 + D * t;
+		// std::cout << "D: " << D << std::endl;
+
+		return s * C / D;
 	}
 
-	// Baseline central-region value: currently just bisection.
+	// Central-region value
 	static inline double central_value_baseline(double x) {
-		// std::cout << "central_value_baseline()\n";
-		// TODO(candidate): Replace with rational approximation around x≈0.5
+		// No need to check if x > 0.5 or x < 0.5
+		// Symmetry is acheieved with the help of u = x - 0.5
 		return central_value_fast(x);
 	}
 
-	// Baseline tail handler: currently just bisection (slow for extreme x).
+	// Tail value
 	static inline double tail_value_baseline(double x) {
-		// std::cout << "tail_value_baseline()\n";
-		// TODO(candidate): Implement tail mapping t = sqrt(-2*log(m)) with rational in t
+		// No need to check if x > 0.5 or x < 0.5
+		// Symmetry is acheieved with the help of m = std::min(x, 1 - x) and sign s
 		return tail_value_fast(x);
 	}
 
