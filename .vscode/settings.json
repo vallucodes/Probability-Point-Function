@@ -52,6 +52,18 @@
 		"stdexcept": "cpp",
 		"streambuf": "cpp",
 		"typeinfo": "cpp",
-		"variant": "cpp"
+		"variant": "cpp",
+		"complex": "cpp",
+		"cstring": "cpp",
+		"strstream": "cpp",
+		"cfenv": "cpp",
+		"condition_variable": "cpp",
+		"source_location": "cpp",
+		"mutex": "cpp",
+		"semaphore": "cpp",
+		"stdfloat": "cpp",
+		"stop_token": "cpp",
+		"thread": "cpp",
+		"cinttypes": "cpp"
 	}
 }

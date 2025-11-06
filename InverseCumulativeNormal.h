@@ -13,18 +13,18 @@ class InverseCumulativeNormal {
 public:
 	explicit InverseCumulativeNormal(double average = 0.0, double sigma = 1.0)
 	: average_(average), sigma_(sigma) {
-		std::cout << "Constructor()\n";
+		// std::cout << "Constructor()\n";
 	}
 
 	// Scalar call: return average + sigma * Φ^{-1}(x)
 	inline double operator()(double x) const {
-		std::cout << "Operator(1 arg)\n";
+		// std::cout << "Operator(1 arg)\n";
 		return average_ + sigma_ * standard_value(x);
 	}
 
 	// Vector overload: out[i] = average + sigma * Φ^{-1}(in[i]) for i in [0, n)
 	inline void operator()(const double* in, double* out, std::size_t n) const {
-		std::cout << "Operator(3 args)\n";
+		// std::cout << "Operator(3 args)\n";
 		for (std::size_t i = 0; i < n; ++i) {
 			out[i] = average_ + sigma_ * standard_value(in[i]);
 		}
@@ -33,7 +33,7 @@ public:
 	// Standardized value: inverse CDF with average=0, sigma=1.
 	// Baseline: deliberately crude but correct bisection. Replace internals with your faster method.
 	static inline double standard_value(double x) {
-		std::cout << "Standard_value()\n";
+		// std::cout << "Standard_value()\n";
 		// Handle edge and invalid cases defensively.
 		if (x <= 0.0) return -std::numeric_limits<double>::infinity();
 		if (x >= 1.0) return  std::numeric_limits<double>::infinity();
@@ -221,7 +221,7 @@ private:
 	// One-step Halley refinement (3rd order). Usually brings result to full double precision.
 	static inline double halley_refine(double z, double x) {
 		// Canter region
-		if (x > 10^-8 && x < 1 - 10^-8)
+		if (x > 1e-8 && x < 1 - 1e-8)
 		{
 			// r = (Φ(z) - x) / φ(z)
 			const double f = Phi(z);
@@ -233,24 +233,30 @@ private:
 										: std::copysign(std::numeric_limits<double>::infinity(), denom));
 		}
 		// Right tail
-		else if (x >= 1 - 10^-8)
+		else if (x >= 1.0 - 1e-8)
 		{
-			const double y = 1 - x;
+			const double y = 1.0 - x;
 			const double phi_val = phi(z);
-			const double Q = 1 - Phi(z);
-			const double numerator = y * expm1(std::log(Q) - std::log(y));
+			const double Q = 1.0 - Phi(z);
+			const double log_diff = std::log(Q) - std::log(y);
+			const double numerator = y * expm1(log_diff);
 			const double r = -numerator / phi_val;
-			return r;
+
+			z = z - (r / (1 - 0.5 * z * r));
+			return z;
 		}
 		// Left tail
 		else
 		{
 			const double y = x;
 			const double phi_val = phi(z);
-			const double Q = 1 - Phi(z);
-			const double numerator = y * expm1(std::log(Q) - std::log(y));
+			const double Q = Phi(z);
+			const double log_diff = std::log(Q) - std::log(y);
+			const double numerator = y * std::expm1(log_diff);
 			const double r = numerator / phi_val;
-			return r;
+
+			z = z - (r / (1 - 0.5 * z * r));
+			return z;
 		}
 	}
 #endif
@@ -260,7 +266,7 @@ private:
 	double average_, sigma_;
 
 	// Region split (you may adjust in your improved version).
-	static constexpr double x_low_  = 0.02425;         // ~ Φ(-2.0)
+	static constexpr double x_low_  = 0.02;         // ~ Φ(-2.0)
 	static constexpr double x_high_ = 1.0 - x_low_;
 };
 
