@@ -1,6 +1,6 @@
 NAME		= probit
 CXX			= c++
-CXXFLAGS	= -Wall -Wextra -Werror -std=c++17
+CXXFLAGS	= -Wall -Wextra  -std=c++17 #-Werror
 
 SRC_DIR		= src/
 OBJ_DIR		= obj/

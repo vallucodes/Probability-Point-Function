@@ -1,11 +1,12 @@
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+from numpy.linalg import lstsq, cond
 
 # samples: Training data samples amount
 # n: degree m/n
 # x_low, x_high: range for fitting
-def fitting(samples = 35, n = 8, x_low = 10e-16, x_high = 0.02):
+def fitting(samples = 1000, p = 8, x_low = 10e-16, x_high = 0.02):
 	# Distribute samples using log spacing in range [10^-16, 0.002]
 	# using linear spacing in range ]0.002, 0.02]
 	samples_linear = samples // 3
@@ -41,10 +42,10 @@ def fitting(samples = 35, n = 8, x_low = 10e-16, x_high = 0.02):
 
 		# Build A and y arrays. y array = z array
 		Ai = []
-		for j in range(0, n + 1):
+		for j in range(0, p + 1):
 			Ai.append(s * (t ** j))
 
-		for j in range(1, n + 1):
+		for j in range(1, p + 1):
 			Ai.append(-z * (t ** j))
 
 		A.append(Ai)
@@ -53,6 +54,8 @@ def fitting(samples = 35, n = 8, x_low = 10e-16, x_high = 0.02):
 	A = np.array(A)
 	y = np.array(y)
 
+
+
 	# Add weights for samples nearing tail
 	weights = generate_weights(xs, x_low, x_high)
 	# print("weights:", weights)
@@ -60,10 +63,33 @@ def fitting(samples = 35, n = 8, x_low = 10e-16, x_high = 0.02):
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
+	condition_number = np.linalg.cond(A_w)
+	print(f"Condition Number of A: {condition_number:.2e}")
+
+	# --- Setup ---
+	lambda_val = 1e-10  # Start with lambda = 1e-10 (sqrt(lambda) = 1e-5)
+	P = A_w.shape[1] # Number of coefficients (m + n + 1, typically 17)
+
+	# --- 1. Create the Augmentation Matrix ---
+	# Augmentation term is sqrt(lambda) * Identity matrix
+	lambda_I = np.sqrt(lambda_val) * np.eye(P)
+
+	# --- 2. Augment the Design Matrix (A') ---
+	A_augmented = np.vstack([A_w, lambda_I])
+
+	# --- 3. Augment the Target Vector (y') ---
+	# Augment y with P zeros
+	y_augmented = np.hstack([y_w, np.zeros(P)])
+
+	condition_number = cond(A_augmented)
+	print(f"Condition Number (Augumented): {condition_number:.2e}")
+
 	# Solve linear equations with least square method
 	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
+	# theta, residuals, rank, s = np.linalg.lstsq(A_augmented, y_augmented, rcond=None)
+
 	# print("theta:", theta)
-	return theta, x_low, n
+	return theta, x_low, p
 
 # Generate weights for sample points at extreme tail and near-join points
 # This could be optimized
@@ -102,14 +128,14 @@ def generate_weights(xs, x_low, x_high):
 def	validation(theta, x_low, x_high = 0.02):
 
 	# Calculate x ∈ [10e-16, 0.02]
-	xs_validation_left = np.linspace(x_low, x_high, 1000)
+	xs_validation_left = np.linspace(x_low, x_high, 10000)
 	z_real_left = norm.ppf(xs_validation_left)
 	z_approx_left = apply_approximation(xs_validation_left, theta)
 	error_left = z_real_left - z_approx_left
 
 
 	# Calculate x ∈ [0.98, 1 - 10e-16]
-	xs_validation_right = np.linspace(1 - x_high, 1 - x_low, 1000)
+	xs_validation_right = np.linspace(1 - x_high, 1 - x_low, 10000)
 	z_real_right = norm.ppf(xs_validation_right)
 	# Symmetry around 0.5 used: Φ^(-1)(x) = -Φ^(-1)(1 - x)
 	z_approx_right = -apply_approximation(1 - xs_validation_right, theta)
@@ -173,28 +199,28 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	plt.tight_layout()
 	plt.show()
 
-def export(theta, x_low, x_high, n):
+def export(theta, x_low, x_high, p):
 	# Export coefficients for C++
-	m = n
+	q = p
 	print("\n" + "="*60)
 	print("C++ COEFFICIENT EXPORT")
 	print("="*60)
-	print(f"\n// Tail region rational approximation (m = {m}, n = {n})")
+	print(f"\n// Tail region rational approximation (m = {q}, n = {p})")
 	print(f"// Valid for x in [{x_low}, {x_high}]")
-	print("constexpr double C_coeffs[] = {")
-	for i, coef in enumerate(theta[:m+1]):
-		print(f"    {coef:.16e}{',' if i < m else ''}")
+	print(f"constexpr std::array<double, {q + 1}> C_coeffs = {{")
+	for i, coef in enumerate(theta[:q+1]):
+		print(f"    {coef:.16e}{',' if i < q else ''}")
 	print("};")
-	print("constexpr double D_coeffs[] = {")
-	for i, coef in enumerate(theta[m+1:]):
-		print(f"    {coef:.16e}{',' if i < n-1 else ''}")
+	print(f"constexpr std::array<double, {q}> D_coeffs = {{")
+	for i, coef in enumerate(theta[q+1:]):
+		print(f"    {coef:.16e}{',' if i < p-1 else ''}")
 	print("};")
 
 def main():
-	theta, x_low, n = fitting()
+	theta, x_low, p = fitting()
 	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
 	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
-	export(theta, x_low, x_high, n)
+	export(theta, x_low, x_high, p)
 
 if __name__ == "__main__":
 	main()

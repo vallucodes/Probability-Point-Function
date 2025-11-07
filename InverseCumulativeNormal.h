@@ -38,11 +38,20 @@ public:
 		if (x <= 0.0) return -std::numeric_limits<double>::infinity();
 		if (x >= 1.0) return  std::numeric_limits<double>::infinity();
 
+		if (x > 0.5)
+			return -standard_value(1.0 - x);
 		// Piecewise structure left in place so you can drop in rational approximations.
 		if (x < x_low_ || x > x_high_) {
 			double z = tail_value_baseline(x);   // << replace with tail mapping + rational
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
+			// std::cout << "z before first refinement: " << z << "\n";
+
 			z = halley_refine(z, x);
+			// std::cout << "z after first refinement: " << z << "\n";
+
+			z = halley_refine(z, x);
+			// std::cout << "z after second refinement: " << z << "\n";
+
 		#endif
 			return z;
 		} else {
@@ -72,6 +81,12 @@ private:
 		constexpr double INV_SQRT_2 =
 			0.707106781186547524400844362104849039284835937688474036588; // 1/√2
 		return 0.5 * std::erfc(-z * INV_SQRT_2);
+	}
+
+	static inline double Q_stable(double z) {
+		constexpr double INV_SQRT_2 =
+			0.707106781186547524400844362104849039284835937688474036588; // 1/√2
+		return 0.5 * std::erfc(z * INV_SQRT_2);
 	}
 
 	// Crude but reliable invert via bisection; brackets wide enough for double tails.
@@ -128,79 +143,116 @@ private:
 
 		double u = x - 0.5;
 		double r = u * u;
+		std::cout << std::fixed << std::setprecision(30);
+		// std::cout << "x: " << x << "\n";
+		// std::cout << "u: " << u << "\n";
+		// std::cout << "r: " << r << "\n";
 
 		double P = 0.0;
 		auto it = P_coeffs.end();
-		while (it != P_coeffs.begin())
-		{
+		while (it != P_coeffs.begin()) {
 			--it;
 			P = *it + P * r;
 		}
-		// std::cout << "P: " << P << std::endl;
+		// std::cout << "P (Horner result): " << P << "\n";
 
 		double Q = 0.0;
 		it = Q_coeffs.end();
-		while (it != Q_coeffs.begin())
-		{
+		while (it != Q_coeffs.begin()) {
 			--it;
 			Q = *it + Q * r;
 		}
 		Q = 1 + Q * r;
-		// std::cout << "Q: " << Q << std::endl;
+		// std::cout << "Q (Horner result): " << Q << "\n";
 
-		return u * P / Q;
+		double z = u * P / Q;
+		// std::cout << "u * P / Q (raw z): " << z << "\n\n";
+
+		return z;
 	}
 
 	static inline double tail_value_fast(double x) {
+		// // Tail region rational approximation (m = 8, n = 8)
+		// // Valid for x in [1e-15, 0.02]
+		// constexpr std::array<double, 9> C_coeffs = {
+		// 	-6.0042308945282707e-01,
+		// 	1.0758930509662520e-01,
+		// 	3.0332610475203353e-01,
+		// 	-3.3804033257979489e-02,
+		// 	1.3382873627985800e-01,
+		// 	-2.9580458413863892e-02,
+		// 	3.3972810405724552e-01,
+		// 	-2.1050098774305606e-01,
+		// 	-6.7248194629267677e-02
+		// };
+		// constexpr std::array<double, 8> D_coeffs = {
+		// 	-5.3846100539051089e-01,
+		// 	5.1710968386019607e-01,
+		// 	1.6853638612244221e-02,
+		// 	-1.0463172664394028e-01,
+		// 	9.7791265190626628e-02,
+		// 	-2.1482641187044155e-01,
+		// 	-6.7156570718592754e-02,
+		// 	-1.1829534091456484e-06
+		// };
+
 		// Tail region rational approximation (m = 8, n = 8)
-		// Valid for x in [10e-16, 0.02] and [0.98, 1 - 10e-16]
-		// TODO check which one to use at boundary 0.02/////////////////////////////////////
+		// Valid for x in [1e-15, 0.02]
 		constexpr std::array<double, 9> C_coeffs = {
-			-1.4453936962031595e+00,
-			5.3437725610366160e-01,
-			2.7485580086525579e-01,
-			-4.1960419129514329e-02,
-			1.0367545320728760e-01,
-			-7.0741870362246578e-02,
-			-3.2199914177129119e-01,
-			3.6027529698610544e-01,
-			5.7744261269094987e-02
+			-6.0043095946393776e-01,
+			1.0759158669250106e-01,
+			3.0332939532581726e-01,
+			-3.3806155735939918e-02,
+			1.3383196789397206e-01,
+			-2.9581586513698681e-02,
+			3.3973708908486000e-01,
+			-2.1050645604756457e-01,
+			-6.7250566689214739e-02
 		};
 		constexpr std::array<double, 8> D_coeffs = {
-			-1.6858265128634287e-01,
-			9.5570917623519314e-01,
-			-3.8810197773723981e-01,
-			4.5056803404836981e-01,
-			-8.8167429736128899e-02,
-			3.6287243331601549e-01,
-			5.7701387291593187e-02,
-			4.5659896463767780e-07
+			-5.3846620747598251e-01,
+			5.1711879734577182e-01,
+			1.6849725906223252e-02,
+			-1.0463289768130692e-01,
+			9.7792270337484527e-02,
+			-2.1483206574479016e-01,
+			-6.7158938217368541e-02,
+			-1.1830198695522709e-06
 		};
 
-		double m = std::min(x, 1 - x);
-		double t = std::sqrt(-2 * std::log(m));
+		// std::cout << std::fixed << std::setprecision(30);
+		// std::cout << "x: " << x << "\n";
+
+		double m = std::min(x, 1.0 - x);
+		// std::cout << "m (min(x, 1-x)): " << m << "\n";
+
+		double t = std::sqrt(-2.0 * std::log(m));
+		// std::cout << "t = sqrt(-2*log(m)): " << t << "\n";
+
 		double s = std::copysign(1.0, x - 0.5);
+		// std::cout << "s (sign(x-0.5)): " << s << "\n";
 
 		double C = 0.0;
 		auto it = C_coeffs.end();
-		while (it != C_coeffs.begin())
-		{
+		while (it != C_coeffs.begin()) {
 			--it;
 			C = *it + C * t;
 		}
-		// std::cout << "C: " << C << std::endl;
+		// std::cout << "C (Horner result): " << C << "\n";
 
 		double D = 0.0;
 		it = D_coeffs.end();
-		while (it != D_coeffs.begin())
-		{
+		while (it != D_coeffs.begin()) {
 			--it;
 			D = *it + D * t;
 		}
-		D = 1 + D * t;
-		// std::cout << "D: " << D << std::endl;
+		D = 1.0 + D * t;
+		// std::cout << "D (Horner result): " << D << "\n";
 
-		return s * C / D;
+		double z = s * (C / D);
+		// std::cout << "s * C / D (raw z): " << z << "\n\n";
+
+		return z;
 	}
 
 	// Central-region value
@@ -220,32 +272,21 @@ private:
 #ifdef ICN_ENABLE_HALLEY_REFINEMENT
 	// One-step Halley refinement (3rd order). Usually brings result to full double precision.
 	static inline double halley_refine(double z, double x) {
-		// Canter region
+		double r;
+		// Center region
 		if (x > 1e-8 && x < 1 - 1e-8)
 		{
 			// r = (Φ(z) - x) / φ(z)
 			const double f = Phi(z);
 			const double p = phi(z);
-			const double r = (f - x) / std::max(p, std::numeric_limits<double>::min());
-			// Halley: z_{new} = z - r / (1 - 0.5*z*r)
-			const double denom = 1.0 - 0.5 * z * r;
-			return z - r / (denom != 0.0 ? denom
-										: std::copysign(std::numeric_limits<double>::infinity(), denom));
-		}
-		// Right tail
-		else if (x >= 1.0 - 1e-8)
-		{
-			const double y = 1.0 - x;
-			const double phi_val = phi(z);
-			const double Q = 1.0 - Phi(z);
-			const double log_diff = std::log(Q) - std::log(y);
-			const double numerator = y * expm1(log_diff);
-			const double r = -numerator / phi_val;
+			r = (f - x) / p;
+			// std::cout << std::fixed << std::setprecision(50);
 
-			z = z - (r / (1 - 0.5 * z * r));
-			return z;
+			// std::cout << "center f: " << f << "\n";
+			// std::cout << "center x: " << x << "\n";
+			// std::cout << "center f - x: " << f - x << "\n";
+			// std::cout << "center r: " << r << "\n";
 		}
-		// Left tail
 		else
 		{
 			const double y = x;
@@ -253,11 +294,11 @@ private:
 			const double Q = Phi(z);
 			const double log_diff = std::log(Q) - std::log(y);
 			const double numerator = y * std::expm1(log_diff);
-			const double r = numerator / phi_val;
-
-			z = z - (r / (1 - 0.5 * z * r));
-			return z;
+			r = numerator / phi_val;
 		}
+		const double denom = 1.0 - 0.5 * z * r;
+		return z - r / (denom != 0.0 ? denom
+									: std::copysign(std::numeric_limits<double>::infinity(), denom));
 	}
 #endif
 

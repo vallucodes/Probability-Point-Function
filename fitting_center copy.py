@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+from numpy.linalg import lstsq, cond
 
 # samples: Training data samples amount
 # n: degree m/n
@@ -38,9 +39,12 @@ def fitting(samples=200, n=8, x_low=0.5, x_high=0.999999):
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
+	condition_number = cond(A_w)
+	print(f"Condition Number (Augumented): {condition_number:.2e}")
+
 	# Solve linear equations with least square method
 	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
-	return theta, x_low, n
+	return theta, n
 
 # Generate nodes based on Chebyshev grid -> more nodes close to tail for more accuracy
 # Optimization: use only upper half for fitting
@@ -77,7 +81,7 @@ def generate_weights(xs, x_low, x_high):
 
 # Calculate values for [0.5, 0.98] region, then with help of symmetry get
 # values for [0.02, 0.5] region, combine and compare approximation with real PPF
-def	validation(theta, x_low, x_high=0.98):
+def	validation(theta, x_low=0.02, x_high=0.98):
 	# Calculate x ∈ [0.5, 0.98]
 	xs_validation_right = np.linspace(x_low, x_high, 1000)
 	z_real_right = norm.ppf(xs_validation_right)
@@ -87,8 +91,7 @@ def	validation(theta, x_low, x_high=0.98):
 	# Calculate x ∈ [0.02, 0.5]
 	xs_validation_left = np.linspace(1 - x_high, x_low, 1000)
 	z_real_left = norm.ppf(xs_validation_left)
-	# Symmetry around 0.5 used: Φ^(-1)(x) = -Φ^(-1)(1 - x)
-	z_approx_left = -apply_approximation(1 - xs_validation_left, theta, x_low, x_high)
+	z_approx_left = apply_approximation(xs_validation_left, theta, x_low, x_high)
 	error_left = z_real_left - z_approx_left
 
 	# Combine left and right: x ∈ [0.02, 0.98]
@@ -100,7 +103,7 @@ def	validation(theta, x_low, x_high=0.98):
 	# Error stats
 	print(f"Max absolute error: {np.max(np.abs(error_all)):.2e}")
 	print(f"Mean absolute error: {np.mean(np.abs(error_all)):.2e}")
-	return xs_all, z_real_all, z_approx_all, error_all, x_high
+	return xs_all, z_real_all, z_approx_all, error_all, x_high, x_low
 
 # Calculate P and Q using Horner's method
 def apply_approximation(xs, theta, x_low, x_high):
@@ -169,8 +172,8 @@ def export(theta, x_low, x_high, n):
 	print("};")
 
 def main():
-	theta, x_low, n = fitting()
-	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
+	theta, n = fitting()
+	xs_all, z_real_all, z_approx_all, error_all, x_high, x_low = validation(theta)
 	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
 	export(theta, x_low, x_high, n)
 
