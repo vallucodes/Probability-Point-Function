@@ -38,6 +38,7 @@ public:
 		if (x <= 0.0) return -std::numeric_limits<double>::infinity();
 		if (x >= 1.0) return  std::numeric_limits<double>::infinity();
 
+		// Use symetry Φ^(-1)(x) = -Φ^(-1)(1 - x)
 		if (x > 0.5)
 			return -standard_value(1.0 - x);
 		// Piecewise structure left in place so you can drop in rational approximations.
@@ -57,6 +58,7 @@ public:
 		} else {
 			double z = central_value_baseline(x); // << replace with central-region rational
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
+			z = halley_refine(z, x);
 			z = halley_refine(z, x);
 		#endif
 			return z;
@@ -81,12 +83,6 @@ private:
 		constexpr double INV_SQRT_2 =
 			0.707106781186547524400844362104849039284835937688474036588; // 1/√2
 		return 0.5 * std::erfc(-z * INV_SQRT_2);
-	}
-
-	static inline double Q_stable(double z) {
-		constexpr double INV_SQRT_2 =
-			0.707106781186547524400844362104849039284835937688474036588; // 1/√2
-		return 0.5 * std::erfc(z * INV_SQRT_2);
 	}
 
 	// Crude but reliable invert via bisection; brackets wide enough for double tails.
@@ -143,10 +139,6 @@ private:
 
 		double u = x - 0.5;
 		double r = u * u;
-		std::cout << std::fixed << std::setprecision(30);
-		// std::cout << "x: " << x << "\n";
-		// std::cout << "u: " << u << "\n";
-		// std::cout << "r: " << r << "\n";
 
 		double P = 0.0;
 		auto it = P_coeffs.end();
@@ -154,7 +146,6 @@ private:
 			--it;
 			P = *it + P * r;
 		}
-		// std::cout << "P (Horner result): " << P << "\n";
 
 		double Q = 0.0;
 		it = Q_coeffs.end();
@@ -163,10 +154,8 @@ private:
 			Q = *it + Q * r;
 		}
 		Q = 1 + Q * r;
-		// std::cout << "Q (Horner result): " << Q << "\n";
 
 		double z = u * P / Q;
-		// std::cout << "u * P / Q (raw z): " << z << "\n\n";
 
 		return z;
 	}
@@ -220,17 +209,9 @@ private:
 			-1.1830198695522709e-06
 		};
 
-		// std::cout << std::fixed << std::setprecision(30);
-		// std::cout << "x: " << x << "\n";
-
 		double m = std::min(x, 1.0 - x);
-		// std::cout << "m (min(x, 1-x)): " << m << "\n";
-
 		double t = std::sqrt(-2.0 * std::log(m));
-		// std::cout << "t = sqrt(-2*log(m)): " << t << "\n";
-
 		double s = std::copysign(1.0, x - 0.5);
-		// std::cout << "s (sign(x-0.5)): " << s << "\n";
 
 		double C = 0.0;
 		auto it = C_coeffs.end();
@@ -238,7 +219,6 @@ private:
 			--it;
 			C = *it + C * t;
 		}
-		// std::cout << "C (Horner result): " << C << "\n";
 
 		double D = 0.0;
 		it = D_coeffs.end();
@@ -247,25 +227,18 @@ private:
 			D = *it + D * t;
 		}
 		D = 1.0 + D * t;
-		// std::cout << "D (Horner result): " << D << "\n";
 
 		double z = s * (C / D);
-		// std::cout << "s * C / D (raw z): " << z << "\n\n";
-
 		return z;
 	}
 
 	// Central-region value
 	static inline double central_value_baseline(double x) {
-		// No need to check if x > 0.5 or x < 0.5
-		// Symmetry is acheieved with the help of u = x - 0.5
 		return central_value_fast(x);
 	}
 
 	// Tail value
 	static inline double tail_value_baseline(double x) {
-		// No need to check if x > 0.5 or x < 0.5
-		// Symmetry is acheieved with the help of m = std::min(x, 1 - x) and sign s
 		return tail_value_fast(x);
 	}
 
@@ -279,14 +252,10 @@ private:
 			// r = (Φ(z) - x) / φ(z)
 			const double f = Phi(z);
 			const double p = phi(z);
+			// TODO check for division by 0
 			r = (f - x) / p;
-			// std::cout << std::fixed << std::setprecision(50);
-
-			// std::cout << "center f: " << f << "\n";
-			// std::cout << "center x: " << x << "\n";
-			// std::cout << "center f - x: " << f - x << "\n";
-			// std::cout << "center r: " << r << "\n";
 		}
+		// Tail region
 		else
 		{
 			const double y = x;
@@ -296,7 +265,8 @@ private:
 			const double numerator = y * std::expm1(log_diff);
 			r = numerator / phi_val;
 		}
-		const double denom = 1.0 - 0.5 * z * r;
+		const long double denom = 1.0 - 0.5 * z * r;
+
 		return z - r / (denom != 0.0 ? denom
 									: std::copysign(std::numeric_limits<double>::infinity(), denom));
 	}
