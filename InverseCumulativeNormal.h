@@ -23,8 +23,10 @@ public:
 	}
 
 	// Vector overload: out[i] = average + sigma * Φ^{-1}(in[i]) for i in [0, n)
+	// inline void operator()(const double* __restrict__ in, double* __restrict__ out, std::size_t n) const {
 	inline void operator()(const double* in, double* out, std::size_t n) const {
 		// std::cout << "Operator(3 args)\n";
+		#pragma omp parallel for
 		for (std::size_t i = 0; i < n; ++i) {
 			out[i] = average_ + sigma_ * standard_value(in[i]);
 		}
@@ -45,20 +47,12 @@ public:
 		if (x < x_low_ || x > x_high_) {
 			double z = tail_value_baseline(x);   // << replace with tail mapping + rational
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
-			// std::cout << "z before first refinement: " << z << "\n";
-
 			z = halley_refine(z, x);
-			// std::cout << "z after first refinement: " << z << "\n";
-
-			z = halley_refine(z, x);
-			// std::cout << "z after second refinement: " << z << "\n";
-
 		#endif
 			return z;
 		} else {
 			double z = central_value_baseline(x); // << replace with central-region rational
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
-			z = halley_refine(z, x);
 			z = halley_refine(z, x);
 		#endif
 			return z;
@@ -243,32 +237,38 @@ private:
 	}
 
 #ifdef ICN_ENABLE_HALLEY_REFINEMENT
-	// One-step Halley refinement (3rd order). Usually brings result to full double precision.
+	// One-two - step Halley refinement (3rd order). Usually brings result to full double precision.
 	static inline double halley_refine(double z, double x) {
 		double r;
-		// Center region
-		if (x > 1e-8 && x < 1 - 1e-8)
+		for (int i = 0; i < 2; i++)
 		{
-			// r = (Φ(z) - x) / φ(z)
-			const double f = Phi(z);
-			const double p = phi(z);
-			// TODO check for division by 0
-			r = (f - x) / p;
-		}
-		// Tail region
-		else
-		{
-			const double y = x;
-			const double phi_val = phi(z);
-			const double Q = Phi(z);
-			const double log_diff = std::log(Q) - std::log(y);
-			const double numerator = y * std::expm1(log_diff);
-			r = numerator / phi_val;
-		}
-		const long double denom = 1.0 - 0.5 * z * r;
+			// Center region
+			if (x > 1e-8 && x < 1 - 1e-8)
+			{
+				// r = (Φ(z) - x) / φ(z)
+				const double f = Phi(z);
+				const double p = phi(z);
+				// TODO check for division by 0
+				r = (f - x) / p;
+			}
+			// Tail region
+			else
+			{
+				const double y = x;
+				const double phi_val = phi(z);
+				const double Q = Phi(z);
+				const double log_diff = std::log(Q) - std::log(y);
+				const double numerator = y * std::expm1(log_diff);
+				r = numerator / phi_val;
+			}
+			if (std::abs(r) < std::numeric_limits<double>::epsilon())
+				return z;
 
-		return z - r / (denom != 0.0 ? denom
-									: std::copysign(std::numeric_limits<double>::infinity(), denom));
+			const double denom = 1.0 - 0.5 * z * r;
+			z -= r / (denom != 0.0 ? denom
+						: std::copysign(std::numeric_limits<double>::infinity(), denom));
+		}
+		return z;
 	}
 #endif
 

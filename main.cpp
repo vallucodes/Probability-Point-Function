@@ -8,17 +8,23 @@
 
 #include "InverseCumulativeNormal.h"
 
-
-// benchmark result bisection
+// Non vector
+// benchmark result bisection (10^7 calls)
 // Elapsed: 13058 ms  (avg 1305.8 ns/call)
 
-// benchmark result fast
+// benchmark result fast (10^7 calls). ~10x faster
 // Elapsed: 1235 ms  (avg 123.5 ns/call)
 
+// benchmark result after adding optimization flags for compilation (10^7 calls). ~27x faster
+// Elapsed: 472.532 ms  (avg 47.2532 ns/call)
 
-// benchmark result vectors original
-// Elapsed: 1549.14 ms  (avg 154.914 ns/call)
 
+// vector:
+// benchmark result vectors original (10^6 calls)
+// Average elapsed: 155.313 ms  (avg 155.313 ns/call)
+
+// benchmark result vectors optimized (10^6 calls). ~21x faster
+// Average elapsed: 7.10344 ms  (avg 7.10345 ns/call)
 
 void	stats_errors() {
 	quant::InverseCumulativeNormal icn; // mean=0, sigma=1
@@ -26,33 +32,35 @@ void	stats_errors() {
 	std::random_device rd;
 	std::mt19937 gen(rd());
 	std::uniform_real_distribution<double> dist(1e-12, 1.0 - 1e-12);
-	// std::uniform_real_distribution<double> dist(1e-12, 0.5);
 
 	boost::math::normal_distribution<> standard_normal;
 
 	const int N = 10000000;
+
 	double error_sum = 0.0;
 	double error_max = 0.0;
-	double error_max_x = 0.0;
-	for (int i = 1; i < N; i++)
+
+	std::vector<double> errors;
+	errors.reserve(N);
+
+	for (int i = 0; i < N; i++)
 	{
 		const double x = dist(gen);
 		const double z_approx = icn(x);
 		const double z_ref = boost::math::quantile(standard_normal, x);
 		const double error = std::abs(z_approx - z_ref);
+		errors.push_back(error);
 		error_sum += error;
 		if (error > error_max)
-		{
 			error_max = error;
-			error_max_x = x;
-		}
 	}
-	double error_avg = error_sum / (N - 1);
+	std::sort(errors.begin(), errors.end());
+	const double error_avg = error_sum / N;
+	const double error_p99 = errors[static_cast<size_t>(0.99 * N)];
 	std::cout << std::scientific << std::setprecision(4);
 	std::cout << "error avg: " << error_avg << "\n";
+	std::cout << "error p99: " << error_p99 << "\n";
 	std::cout << "error max: " << error_max << "\n";
-	std::cout << std::fixed << std::setprecision(100);
-	std::cout << "at: " << error_max_x << "\n";
 }
 
 void	test_single_value() {
@@ -221,7 +229,7 @@ void test_symmetry() {
 	const int N = 1000000;
 	double max_diff = 0.0;
 
-	double max_x;
+	double max_x = 0.0;
 	for (int i = 1; i < N; i++) {
 		double x = i / N;
 		if (x == 0.0)
@@ -276,39 +284,44 @@ void	test_derivative() {
 void	test_speed() {
 	quant::InverseCumulativeNormal icn;
 	const int N = 10000000;
-	double sum = 0.0;
+	double checksum = 0.0;
 
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < N; i++)
-		sum += icn((i + 0.5) / N);
+		checksum += icn((i + 0.5) / N);
 	auto end = std::chrono::high_resolution_clock::now();
 
 	double ms = std::chrono::duration<double, std::milli>(end - start).count();
+	std::cout << checksum << "\n";
 	std::cout << "Elapsed: " << ms << " ms  (avg " << (ms * 1e6 / N) << " ns/call)\n";
 }
 
 void	test_speed_vector() {
 	quant::InverseCumulativeNormal icn;
-	const int N = 10000000;
+	const int N = 1000000;
+	const int runs = 10;
 
 	std::vector<double> xin(N);
 
 	for (int i = 0; i < N; i++)
-	{
-		// std::cout << i << "\n";
-		// std::cout << (i + 1.0) / (N + 1.0) << "\n";
 		xin[i] = (i + 1.0) / (N + 1.0);
-	}
 
 	std::vector<double> zout(N);
+	double total_ms = 0.0;
 
-	auto start = std::chrono::high_resolution_clock::now();
-	icn(xin.data(), zout.data(), N);
+	for (int i = 0; i < runs; i++)
+	{
+		auto start = std::chrono::high_resolution_clock::now();
+		icn(xin.data(), zout.data(), N);
+		auto end = std::chrono::high_resolution_clock::now();
+		total_ms += std::chrono::duration<double, std::milli>(end - start).count();
+	}
 
-	auto end = std::chrono::high_resolution_clock::now();
-	double ms = std::chrono::duration<double, std::milli>(end - start).count();
+	const double average_ms =  total_ms / runs;
 
-	std::cout << "Elapsed: " << ms << " ms  (avg " << (ms * 1e6 / (N-1)) << " ns/call)\n";
+	std::cout	<< "Average elapsed: " << average_ms
+				<< " ms  (avg " << (average_ms * 1000000 / (N - 1))
+				<< " ns/call)\n";
 }
 
 int main() {
@@ -319,13 +332,13 @@ int main() {
 	// test_monotonicity_tail_and_join();
 	// test_monotonicity_two_near_random_points();
 	// test_speed();
-	test_speed_vector();
+	// test_speed_vector();
 	// test_single_value();
 	// test_symmetry();
 	// test_symmetry_single_value();
 	// test_derivative();
 
-	// stats_errors();
+	stats_errors();
 
 	return 0;
 }

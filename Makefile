@@ -1,6 +1,7 @@
 NAME		= probit
 CXX			= c++
-CXXFLAGS	= -Wall -Wextra  -std=c++17 #-Werror
+CXXFLAGS	= -Wall -Wextra -Werror -std=c++17 -O3 -ffast-math -march=native -ftree-vectorize -fopenmp
+# CXXOPTIMIZATION
 
 SRC_DIR		= src/
 OBJ_DIR		= obj/
