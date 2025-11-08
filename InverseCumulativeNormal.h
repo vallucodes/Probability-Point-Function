@@ -13,29 +13,24 @@ class InverseCumulativeNormal {
 public:
 	explicit InverseCumulativeNormal(double average = 0.0, double sigma = 1.0)
 	: average_(average), sigma_(sigma) {
-		// std::cout << "Constructor()\n";
 	}
 
 	// Scalar call: return average + sigma * Φ^{-1}(x)
 	inline double operator()(double x) const {
-		// std::cout << "Operator(1 arg)\n";
 		return average_ + sigma_ * standard_value(x);
 	}
 
 	// Vector overload: out[i] = average + sigma * Φ^{-1}(in[i]) for i in [0, n)
 	// inline void operator()(const double* __restrict__ in, double* __restrict__ out, std::size_t n) const {
 	inline void operator()(const double* in, double* out, std::size_t n) const {
-		// std::cout << "Operator(3 args)\n";
 		#pragma omp parallel for
-		for (std::size_t i = 0; i < n; ++i) {
+		for (std::size_t i = 0; i < n; ++i)
 			out[i] = average_ + sigma_ * standard_value(in[i]);
-		}
 	}
 
 	// Standardized value: inverse CDF with average=0, sigma=1.
 	// Baseline: deliberately crude but correct bisection. Replace internals with your faster method.
 	static inline double standard_value(double x) {
-		// std::cout << "Standard_value()\n";
 		// Handle edge and invalid cases defensively.
 		if (x <= 0.0) return -std::numeric_limits<double>::infinity();
 		if (x >= 1.0) return  std::numeric_limits<double>::infinity();
@@ -43,6 +38,7 @@ public:
 		// Use symetry Φ^(-1)(x) = -Φ^(-1)(1 - x)
 		if (x > 0.5)
 			return -standard_value(1.0 - x);
+
 		// Piecewise structure left in place so you can drop in rational approximations.
 		if (x < x_low_ || x > x_high_) {
 			double z = tail_value_baseline(x);   // << replace with tail mapping + rational
@@ -64,7 +60,6 @@ private:
 
 	// Standard normal pdf
 	static inline double phi(double z) {
-		// std::cout << "phi()\n";
 		// 1/sqrt(2π) * exp(-z^2 / 2)
 		constexpr double INV_SQRT_2PI =
 			0.398942280401432677939946059934381868475858631164934657; // 1/sqrt(2π)
@@ -73,62 +68,35 @@ private:
 
 	// Standard normal cdf using erfc: Φ(z) = 0.5 * erfc(-z/√2)
 	static inline double Phi(double z) {
-		// std::cout << "Phi()\n";
 		constexpr double INV_SQRT_2 =
 			0.707106781186547524400844362104849039284835937688474036588; // 1/√2
 		return 0.5 * std::erfc(-z * INV_SQRT_2);
 	}
 
-	// Crude but reliable invert via bisection; brackets wide enough for double tails.
-	static inline double invert_bisect(double x) {
-		std::cout << "invert_bisect()\n";
-		// Monotone Φ(z); find z with Φ(z)=x.
-		double lo = -12.0;
-		double hi =  12.0;
-		// Tighten bracket using symmetry for speed (optional micro-optimization).
-		if (x < 0.5) {
-			hi = 0.0;
-		} else {
-			lo = 0.0;
-		}
-
-		// Bisection iterations: ~60 is enough for double precision on this interval.
-		for (int iter = 0; iter < 80; ++iter) {
-			double mid = 0.5 * (lo + hi);
-			double cdf = Phi(mid);
-			if (cdf < x) {
-				lo = mid;
-			} else {
-				hi = mid;
-			}
-		}
-		return 0.5 * (lo + hi);
-	}
-
+	// Approximation for z using rational function in center
 	static inline double central_value_fast(double x) {
 		// Center region rational approximation (m = 8, n = 8)
-		// Valid for x in [0.02, 0.98]
-		// TODO check which one to use at boundary 0.02/////////////////////////////////////
+		// Valid for x in [0.5, 0.98]
 		constexpr std::array<double, 9> P_coeffs = {
-			2.5066282777485149e+00,
-			-4.3170077232190792e+01,
-			2.8894237421187995e+02,
-			-9.1039065314534901e+02,
-			1.1915157857550817e+03,
-			4.0463762891090013e+01,
-			-8.8453647732874265e+02,
-			-6.3172703267590055e+02,
-			8.1798896463539131e+02
+			2.5066285790664549e+00,
+			-3.0942024238971818e+01,
+			1.3082253839727068e+02,
+			-1.9191274560397164e+02,
+			-2.0028008361062135e+01,
+			9.9314827029478010e+01,
+			1.0045386960066531e+02,
+			1.1306889347740245e+02,
+			6.0898710040066099e+01
 		};
 		constexpr std::array<double, 8> Q_coeffs = {
-			-1.8269566221684713e+01,
-			1.3210023191782122e+02,
-			-4.6570425537124260e+02,
-			7.5421170706875250e+02,
-			-2.4339299340854464e+02,
-			-5.1237908556421576e+02,
-			-6.5600292540741108e+01,
-			5.5060171176853385e+02
+			-1.3391263734336036e+01,
+			6.3910602843373198e+01,
+			-1.1890114814438228e+02,
+			3.4435593751916244e+01,
+			6.7121344042461416e+01,
+			5.0944100714769014e+01,
+			-2.6189288111109132e+01,
+			2.1804001014136286e+01
 		};
 
 		double u = x - 0.5;
@@ -154,54 +122,33 @@ private:
 		return z;
 	}
 
+	// Approximation for z using rational function in tails
 	static inline double tail_value_fast(double x) {
-		// // Tail region rational approximation (m = 8, n = 8)
-		// // Valid for x in [1e-15, 0.02]
-		// constexpr std::array<double, 9> C_coeffs = {
-		// 	-6.0042308945282707e-01,
-		// 	1.0758930509662520e-01,
-		// 	3.0332610475203353e-01,
-		// 	-3.3804033257979489e-02,
-		// 	1.3382873627985800e-01,
-		// 	-2.9580458413863892e-02,
-		// 	3.3972810405724552e-01,
-		// 	-2.1050098774305606e-01,
-		// 	-6.7248194629267677e-02
-		// };
-		// constexpr std::array<double, 8> D_coeffs = {
-		// 	-5.3846100539051089e-01,
-		// 	5.1710968386019607e-01,
-		// 	1.6853638612244221e-02,
-		// 	-1.0463172664394028e-01,
-		// 	9.7791265190626628e-02,
-		// 	-2.1482641187044155e-01,
-		// 	-6.7156570718592754e-02,
-		// 	-1.1829534091456484e-06
-		// };
-
 		// Tail region rational approximation (m = 8, n = 8)
 		// Valid for x in [1e-15, 0.02]
 		constexpr std::array<double, 9> C_coeffs = {
-			-6.0043095946393776e-01,
-			1.0759158669250106e-01,
-			3.0332939532581726e-01,
-			-3.3806155735939918e-02,
-			1.3383196789397206e-01,
-			-2.9581586513698681e-02,
-			3.3973708908486000e-01,
-			-2.1050645604756457e-01,
-			-6.7250566689214739e-02
+			2.2571005649421119e-02,
+			4.4491636985059438e-02,
+			6.8346234754640731e-02,
+			6.9620943433642682e-02,
+			2.9647444436103027e-02,
+			8.3107161809501309e-03,
+			2.1108079614725123e-02,
+			1.9578409586949456e-02,
+			-1.9471949973883837e-02
 		};
 		constexpr std::array<double, 8> D_coeffs = {
-			-5.3846620747598251e-01,
-			5.1711879734577182e-01,
-			1.6849725906223252e-02,
-			-1.0463289768130692e-01,
-			9.7792270337484527e-02,
-			-2.1483206574479016e-01,
-			-6.7158938217368541e-02,
-			-1.1830198695522709e-06
+			-2.6515194754566679e-02,
+			5.1314305829537133e-03,
+			6.7872480335656321e-02,
+			6.0833817105660180e-02,
+			-1.8445859228738058e-02,
+			1.6119329869443651e-02,
+			-1.9342411495264056e-02,
+			-2.4956808396328634e-06
 		};
+
+
 
 		double m = std::min(x, 1.0 - x);
 		double t = std::sqrt(-2.0 * std::log(m));
@@ -222,7 +169,7 @@ private:
 		}
 		D = 1.0 + D * t;
 
-		double z = s * (C / D);
+		double z = s * C / D;
 		return z;
 	}
 
@@ -237,7 +184,7 @@ private:
 	}
 
 #ifdef ICN_ENABLE_HALLEY_REFINEMENT
-	// One-two - step Halley refinement (3rd order). Usually brings result to full double precision.
+	// One or two -step Halley refinement (3rd order). Usually brings result to full double precision.
 	static inline double halley_refine(double z, double x) {
 		double r;
 		for (int i = 0; i < 2; i++)
@@ -245,11 +192,9 @@ private:
 			// Center region
 			if (x > 1e-8 && x < 1 - 1e-8)
 			{
-				// r = (Φ(z) - x) / φ(z)
 				const double f = Phi(z);
 				const double p = phi(z);
-				// TODO check for division by 0
-				r = (f - x) / p;
+				r = (f - x) / std::max(p, std::numeric_limits<double>::min());
 			}
 			// Tail region
 			else
@@ -259,8 +204,11 @@ private:
 				const double Q = Phi(z);
 				const double log_diff = std::log(Q) - std::log(y);
 				const double numerator = y * std::expm1(log_diff);
-				r = numerator / phi_val;
+				r = numerator / std::max(phi_val, std::numeric_limits<double>::min());
 			}
+
+			// Check convergence.
+			// If residual is below machine precision, skip the Halley step
 			if (std::abs(r) < std::numeric_limits<double>::epsilon())
 				return z;
 

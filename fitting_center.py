@@ -1,13 +1,14 @@
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+from numpy.linalg import lstsq, cond
 
 # samples: Training data samples amount
 # n: degree m/n
 # x_low, x_high: range used for fitting
 # Range used for fitting is wider from final usage range because it seems that
 # largest error is at the end of fitting range.
-def fitting(samples=200, n=8, x_low=0.5, x_high=0.999999):
+def fitting(samples = 2000, n = 8, x_low = 0.5, x_high = 0.999999):
 	# Distribute samples using Chebyshev logic -> more dense close to tail
 	xs = chebyshev_nodes(samples, x_low, x_high)
 
@@ -38,8 +39,20 @@ def fitting(samples=200, n=8, x_low=0.5, x_high=0.999999):
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
+	# Add ridge of lambda
+	lambda_val = 1e-16
+	P = A_w.shape[1]
+	I = np.eye(P)
+
+	A_lambda = np.vstack([A_w, np.sqrt(lambda_val) * I])
+	y_lambda = np.append(y_w, np.zeros(P))
+
+	# Uncomment to see condition
+	# condition_number = cond(A_lambda)
+	# print(f"Condition Number (with lambda): {condition_number:.2e}")
+
 	# Solve linear equations with least square method
-	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
+	theta, residuals, rank, s = np.linalg.lstsq(A_lambda, y_lambda, rcond=None)
 	return theta, x_low, n
 
 # Generate nodes based on Chebyshev grid -> more nodes close to tail for more accuracy
@@ -100,6 +113,7 @@ def	validation(theta, x_low, x_high=0.98):
 	# Error stats
 	print(f"Max absolute error: {np.max(np.abs(error_all)):.2e}")
 	print(f"Mean absolute error: {np.mean(np.abs(error_all)):.2e}")
+	print(f"99th percentile absolute error: {np.percentile(np.abs(error_all), 99):.2e}")
 	return xs_all, z_real_all, z_approx_all, error_all, x_high
 
 # Calculate P and Q using Horner's method
@@ -152,7 +166,6 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	plt.show()
 
 def export(theta, x_low, x_high, n):
-	# Export coefficients for C++
 	m = n
 	print("\n" + "="*60)
 	print("C++ COEFFICIENT EXPORT")
@@ -171,7 +184,7 @@ def export(theta, x_low, x_high, n):
 def main():
 	theta, x_low, n = fitting()
 	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
-	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
 	export(theta, x_low, x_high, n)
 
 if __name__ == "__main__":

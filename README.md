@@ -1,9 +1,3 @@
-# Probability-Point-Function
+## Non-idealities and limitations
 
-Useful things:
-
-Probability Point function
-
-
-
-When testing for symmetry 
+Have to implement mirroring logic to approximate z due to precision errors with double. Symmetry test was not passing until implemented mirror for x values over 0.5.

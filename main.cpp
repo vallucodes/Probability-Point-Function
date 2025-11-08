@@ -8,26 +8,8 @@
 
 #include "InverseCumulativeNormal.h"
 
-// Non vector
-// benchmark result bisection (10^7 calls)
-// Elapsed: 13058 ms  (avg 1305.8 ns/call)
-
-// benchmark result fast (10^7 calls). ~10x faster
-// Elapsed: 1235 ms  (avg 123.5 ns/call)
-
-// benchmark result after adding optimization flags for compilation (10^7 calls). ~27x faster
-// Elapsed: 472.532 ms  (avg 47.2532 ns/call)
-
-
-// vector:
-// benchmark result vectors original (10^6 calls)
-// Average elapsed: 155.313 ms  (avg 155.313 ns/call)
-
-// benchmark result vectors optimized (10^6 calls). ~21x faster
-// Average elapsed: 7.10344 ms  (avg 7.10345 ns/call)
-
 void	stats_errors() {
-	quant::InverseCumulativeNormal icn; // mean=0, sigma=1
+	quant::InverseCumulativeNormal icn;
 
 	std::random_device rd;
 	std::mt19937 gen(rd());
@@ -58,17 +40,15 @@ void	stats_errors() {
 	const double error_avg = error_sum / N;
 	const double error_p99 = errors[static_cast<size_t>(0.99 * N)];
 	std::cout << std::scientific << std::setprecision(4);
-	std::cout << "error avg: " << error_avg << "\n";
-	std::cout << "error p99: " << error_p99 << "\n";
-	std::cout << "error max: " << error_max << "\n";
+	std::cout << "error avg = " << error_avg << "\n";
+	std::cout << "error p99 = " << error_p99 << "\n";
+	std::cout << "error max = " << error_max << "\n";
 }
 
 void	test_single_value() {
 
 	quant::InverseCumulativeNormal icn;
 
-	// double x = 0.9999999246163369104323237479547969996929168701171875;
-	// double x = 0.000010000000000000000818030539140313095458623138256371021270751953125;
 	double x = 0.976314033801166214487921024556271731853485107421875;
 
 	boost::math::normal_distribution<> standard_normal;
@@ -76,9 +56,8 @@ void	test_single_value() {
 	const double z_approx = icn(x);
 	const double z_ref = boost::math::quantile(standard_normal, x);
 	const double error = std::abs(z_approx - z_ref);
-	// std::cout << std::fixed << std::setprecision(6);
 	std::cout << std::scientific << std::setprecision(4);
-	std::cout << "error: " << error << "\n";
+	std::cout << "error = " << error << "\n";
 }
 
 void test_symmetry_single_value() {
@@ -101,7 +80,7 @@ void	test_monotonicity_whole_range() {
 	quant::InverseCumulativeNormal icn;
 
 	const int N = 10000000;
-	std::cout << "Step size: " << 1.0 / N << std::endl;
+	std::cout << "Step size = " << 1.0 / N << std::endl;
 	double x, z;
 	double old_z = 0.0;
 	double old_x = 0.0;
@@ -115,15 +94,15 @@ void	test_monotonicity_whole_range() {
 		z = icn(x);
 		std::cout << std::fixed << std::setprecision(18);
 		std::cout << "Comparing: " << z << " < " << old_z << std::endl;
-		std::cout << "Diff: " << z - old_z << std::endl;
+		std::cout << "Diff = " << z - old_z << std::endl;
 		if (z < old_z)
 		{
 			std::cout << "Monotonicity error: values:\n"
 			<< "i = " << i
 			<< "\nx = " << x
 			<< "\nz = " << z
-			<< "\nold_x: " << old_x
-			<< "\nold_z: " << old_z
+			<< "\nold_x = " << old_x
+			<< "\nold_z = " << old_z
 			<< std::endl;
 			fail = true;
 		}
@@ -155,15 +134,15 @@ void	test_monotonicity_tail_and_join() {
 		z = icn(x);
 		std::cout << std::fixed << std::setprecision(18);
 		std::cout << "Comparing: " << z << " < " << old_z << std::endl;
-		std::cout << "Diff: " << z - old_z << std::endl;
+		std::cout << "Diff = " << z - old_z << std::endl;
 		if (z < old_z)
 		{
 			std::cout << "Monotonicity error: values:\n"
 			<< "i = " << i
 			<< "\nx = " << x
 			<< "\nz = " << z
-			<< "\nold_x: " << old_x
-			<< "\nold_z: " << old_z
+			<< "\nold_x = " << old_x
+			<< "\nold_z = " << old_z
 			<< std::endl;
 			fail = true;
 		}
@@ -182,7 +161,7 @@ double step_ulp(double x, int k, double toward = 1.0) {
 	return x;
 }
 
-void	test_monotonicity_two_near_random_points() {
+void	test_monotonicity_two_random_adjacent_points() {
 
 	quant::InverseCumulativeNormal icn;
 
@@ -190,34 +169,30 @@ void	test_monotonicity_two_near_random_points() {
 	std::mt19937 gen(rd());
 	std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-	const int N = 100000000;
+	const int N = 100000000 * 5;
 	bool fail = false;
 
-	int fails = 0;
+	// int fails = 0;
 	for (int i = 1; i < N; i++)
 	{
 		const double x1 = dist(gen);
-		std::cout << std::fixed << std::setprecision(20);
-		// std::cout << "x1: " << x1 << "\n";
-		const double x2 = step_ulp(x1, 30, 1.0);
-		// std::cout << "x2: " << x2 << "\n";
+		const double x2 = step_ulp(x1, 100, 1.0);
 
 		const double z1 = icn(x1);
 		const double z2 = icn(x2);
-		// std::cout << "z1: " << z1 << "\n";
-		// std::cout << "z2: " << z2 << "\n\n";
 
-		if (z2 < z1)
+		if (z2 <= z1)
 		{
-			fails++;
-			// std::cout << "x1: " << x1 << "\n";
-			// std::cout << "x2: " << x2 << "\n";
-			// std::cout << "z1: " << z1 << "❌\n";
-			// std::cout << "z2: " << z2 << "❌\n\n";
+			// fails++;
+			std::cout << std::fixed << std::setprecision(50);
+			std::cout << "x1 = " << x1 << "\n";
+			std::cout << "x2 = " << x2 << "\n";
+			std::cout << "z1 = " << z1 << "❌\n";
+			std::cout << "z2 = " << z2 << "❌\n\n";
 			fail = true;
 		}
 	}
-	std::cout << "fails = " << fails<< "\n";
+	// std::cout << "fails = " << fails<< "\n";
 	if (fail == false)
 		std::cout << "Monotonicity test for tail and join passed\n";
 	else
@@ -230,7 +205,8 @@ void test_symmetry() {
 	double max_diff = 0.0;
 
 	double max_x = 0.0;
-	for (int i = 1; i < N; i++) {
+	for (int i = 1; i < N; i++)
+	{
 		double x = i / N;
 		if (x == 0.0)
 			continue;
@@ -252,7 +228,6 @@ void test_symmetry() {
 }
 
 static inline double phi(double z) {
-	// std::cout << "phi()\n";
 	// 1/sqrt(2π) * exp(-z^2 / 2)
 	constexpr double INV_SQRT_2PI =
 		0.398942280401432677939946059934381868475858631164934657; // 1/sqrt(2π)
@@ -326,11 +301,9 @@ void	test_speed_vector() {
 
 int main() {
 
-	// // --- Vector/array usage (multiple values at once) ---
-
 	// test_monotonicity_whole_range();
 	// test_monotonicity_tail_and_join();
-	// test_monotonicity_two_near_random_points();
+	// test_monotonicity_two_random_adjacent_points();
 	// test_speed();
 	// test_speed_vector();
 	// test_single_value();

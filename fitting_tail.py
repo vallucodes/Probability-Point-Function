@@ -6,7 +6,7 @@ from numpy.linalg import lstsq, cond
 # samples: Training data samples amount
 # n: degree m/n
 # x_low, x_high: range for fitting
-def fitting(samples = 1000, p = 8, x_low = 10e-16, x_high = 0.02):
+def fitting(samples = 200, p = 8, x_low = 10e-16, x_high = 0.02):
 	# Distribute samples using log spacing in range [10^-16, 0.002]
 	# using linear spacing in range ]0.002, 0.02]
 	samples_linear = samples // 3
@@ -63,30 +63,21 @@ def fitting(samples = 1000, p = 8, x_low = 10e-16, x_high = 0.02):
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
-	condition_number = np.linalg.cond(A_w)
+	# Add ridge of lambda
+	lambda_val = 1e-1
+	P = A_w.shape[1]
+	I = np.eye(P)
+
+	A_lambda = np.vstack([A_w, np.sqrt(lambda_val) * I])
+	y_lambda = np.append(y_w, np.zeros(P))
+
+	condition_number = cond(A_w)
 	print(f"Condition Number of A: {condition_number:.2e}")
-
-	# --- Setup ---
-	lambda_val = 1e-10  # Start with lambda = 1e-10 (sqrt(lambda) = 1e-5)
-	P = A_w.shape[1] # Number of coefficients (m + n + 1, typically 17)
-
-	# --- 1. Create the Augmentation Matrix ---
-	# Augmentation term is sqrt(lambda) * Identity matrix
-	lambda_I = np.sqrt(lambda_val) * np.eye(P)
-
-	# --- 2. Augment the Design Matrix (A') ---
-	A_augmented = np.vstack([A_w, lambda_I])
-
-	# --- 3. Augment the Target Vector (y') ---
-	# Augment y with P zeros
-	y_augmented = np.hstack([y_w, np.zeros(P)])
-
-	condition_number = cond(A_augmented)
-	print(f"Condition Number (Augumented): {condition_number:.2e}")
+	condition_number = cond(A_lambda)
+	print(f"Condition Number (lambda): {condition_number:.2e}")
 
 	# Solve linear equations with least square method
-	theta, residuals, rank, s = np.linalg.lstsq(A_w, y_w, rcond=None)
-	# theta, residuals, rank, s = np.linalg.lstsq(A_augmented, y_augmented, rcond=None)
+	theta, residuals, rank, s = np.linalg.lstsq(A_lambda, y_lambda, rcond=None)
 
 	# print("theta:", theta)
 	return theta, x_low, p
@@ -95,7 +86,7 @@ def fitting(samples = 1000, p = 8, x_low = 10e-16, x_high = 0.02):
 # This could be optimized
 def generate_weights(xs, x_low, x_high):
 
-	# Upper 30% is weighted linearly from 2 to 3.
+	# Upper and lower 30% are weighted linearly from 2 to 3.
 	# Value chosen by observing where function starts to curve
 	weighted_range_percentage_extreme_tail = 0.3
 	weighted_range_percentage_near_join = 0.3
@@ -177,18 +168,16 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	# Plot 1: Function comparison
 	axes[0].plot(xs_all, z_real_all, 'b-', label='Real Φ⁻¹(x)', linewidth=2)
 	axes[0].plot(xs_all, z_approx_all, 'r--', label='Rational approx', linewidth=1.5)
-	axes[0].axvline(x_low, color='gray', linestyle=':', alpha=0.5, label='Join points')
-	axes[0].axvline(x_high, color='gray', linestyle=':', alpha=0.5)
+	axes[0].axvline(x_high, color='gray', linestyle=':', alpha=0.5, label='Join point')
 	axes[0].set_xlabel('x')
 	axes[0].set_ylabel('Φ⁻¹(x)')
-	axes[0].set_title('Central Region Approximation')
+	axes[0].set_title('Tail Region Approximation')
 	axes[0].legend()
 	axes[0].grid(True, alpha=0.6)
 
 	# Plot 2: Error
 	axes[1].plot(xs_all, error_all, 'r-', linewidth=1)
 	axes[1].axhline(0, color='k', linewidth=0.8, linestyle='-')
-	axes[1].axvline(x_low, color='gray', linestyle=':', alpha=0.5)
 	axes[1].axvline(x_high, color='gray', linestyle=':', alpha=0.5)
 	axes[1].set_xlabel('x')
 	axes[1].set_ylabel('Error')
@@ -200,7 +189,6 @@ def plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high):
 	plt.show()
 
 def export(theta, x_low, x_high, p):
-	# Export coefficients for C++
 	q = p
 	print("\n" + "="*60)
 	print("C++ COEFFICIENT EXPORT")
