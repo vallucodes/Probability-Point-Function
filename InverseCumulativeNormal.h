@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <array>
 #include <algorithm>
 #include <iostream>
 
@@ -21,15 +22,15 @@ public:
 	}
 
 	// Vector overload: out[i] = average + sigma * Φ^{-1}(in[i]) for i in [0, n)
-	// inline void operator()(const double* __restrict__ in, double* __restrict__ out, std::size_t n) const {
 	inline void operator()(const double* in, double* out, std::size_t n) const {
-		#pragma omp parallel for
+		#ifdef ENABLE_OMP
+			#pragma omp parallel for
+		#endif
 		for (std::size_t i = 0; i < n; ++i)
 			out[i] = average_ + sigma_ * standard_value(in[i]);
 	}
 
 	// Standardized value: inverse CDF with average=0, sigma=1.
-	// Baseline: deliberately crude but correct bisection. Replace internals with your faster method.
 	static inline double standard_value(double x) {
 		// Handle edge and invalid cases defensively.
 		if (x <= 0.0) return -std::numeric_limits<double>::infinity();
@@ -56,7 +57,6 @@ public:
 	}
 
 private:
-	// ---- Baseline numerics (intentionally slow but stable) ------------------
 
 	// Standard normal pdf
 	static inline double phi(double z) {
@@ -125,30 +125,28 @@ private:
 	// Approximation for z using rational function in tails
 	static inline double tail_value_fast(double x) {
 		// Tail region rational approximation (m = 8, n = 8)
-		// Valid for x in [1e-15, 0.02]
+		// Valid for x in [1e-16, 0.02]
 		constexpr std::array<double, 9> C_coeffs = {
-			2.2571005649421119e-02,
-			4.4491636985059438e-02,
-			6.8346234754640731e-02,
-			6.9620943433642682e-02,
-			2.9647444436103027e-02,
-			8.3107161809501309e-03,
-			2.1108079614725123e-02,
-			1.9578409586949456e-02,
-			-1.9471949973883837e-02
+			2.3423357681893679e-02,
+			4.5453227383892833e-02,
+			6.8829783426079857e-02,
+			6.9198766873887887e-02,
+			2.9352393347554642e-02,
+			8.6188080834654780e-03,
+			2.0270702160544878e-02,
+			1.9139428272913046e-02,
+			-1.8403871267529012e-02
 		};
 		constexpr std::array<double, 8> D_coeffs = {
-			-2.6515194754566679e-02,
-			5.1314305829537133e-03,
-			6.7872480335656321e-02,
-			6.0833817105660180e-02,
-			-1.8445859228738058e-02,
-			1.6119329869443651e-02,
-			-1.9342411495264056e-02,
-			-2.4956808396328634e-06
+			-2.5742647808853256e-02,
+			6.6274907321844942e-03,
+			6.8131861396512658e-02,
+			5.9588553550430287e-02,
+			-1.7093380704801174e-02,
+			1.5886452781847131e-02,
+			-1.8283158659116609e-02,
+			-2.3008144921649043e-06
 		};
-
-
 
 		double m = std::min(x, 1.0 - x);
 		double t = std::sqrt(-2.0 * std::log(m));
@@ -207,7 +205,7 @@ private:
 				r = numerator / std::max(phi_val, std::numeric_limits<double>::min());
 			}
 
-			// Check convergence.
+			// Checking convergence
 			// If residual is below machine precision, skip the Halley step
 			if (std::abs(r) < std::numeric_limits<double>::epsilon())
 				return z;

@@ -6,9 +6,9 @@
 
 namespace quant {
 
-class InverseCumulativeNormal {
+class InverseCumulativeNormal_Baseline {
   public:
-    explicit InverseCumulativeNormal(double average = 0.0, double sigma = 1.0)
+    explicit InverseCumulativeNormal_Baseline(double average = 0.0, double sigma = 1.0)
     : average_(average), sigma_(sigma) {}
 
     // Scalar call: return average + sigma * Φ^{-1}(x)
@@ -75,7 +75,6 @@ class InverseCumulativeNormal {
         } else {
             lo = 0.0;
         }
-
         // Bisection iterations: ~60 is enough for double precision on this interval.
         for (int iter = 0; iter < 80; ++iter) {
             double mid = 0.5 * (lo + hi);

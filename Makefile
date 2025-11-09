@@ -1,34 +1,69 @@
-NAME		= probit
-CXX			= c++
-CXXFLAGS	= -Wall -Wextra -Werror -std=c++17 -O3 -ffast-math -march=native -ftree-vectorize -fopenmp
-# CXXOPTIMIZATION
+# Targets
+NAME_SINGLECORE		= probit_singlecore
+NAME_PARALLELLIZED	= probit_parallel
+NAME_TESTS			= probit_tests
 
-SRC_DIR		= src/
-OBJ_DIR		= obj/
+# Compiler
+CXX					= c++
 
-INCLUDES	= -I
-HEADERS		= InverseCumulativeNormal.h
+# CXXFLAGS: Standard flags
+CXXFLAGS			= -Wall -Wextra -Werror -std=c++17
+# OPT_FLAGS: Base flags for all benchmarking runs
+OPT_FLAGS			= -O3 -ffast-math -march=native
+# VEC_FLAGS: Full optimization for parallelization speedup
+VEC_OPT_FLAGS		= -fopenmp -DENABLE_OMP
 
+SRC_DIR				=
+OBJ_DIR				= obj/
 
-SRCS		= main.cpp
+# Includes and headers
+INCLUDES			= -I.
+HEADERS				= InverseCumulativeNormal.h
 
-OBJS		= $(patsubst $(SRC_DIR)%.cpp,$(OBJ_DIR)%.o,$(SRCS))
+# Sources and objects
+SRCS_BASELINE		= benchmark.cpp
+SRCS_PARALLELIZED	= benchmark_paralellized.cpp
+SRCS_TESTS			= tests.cpp
 
-all: $(NAME)
+OBJS_BASELINE		= $(patsubst $(SRC_DIR)%.cpp,$(OBJ_DIR)%.o,$(SRCS_BASELINE)) #rename this
+OBJS_PARALLELIZED	= $(patsubst $(SRC_DIR)%.cpp,$(OBJ_DIR)%.o,$(SRCS_PARALLELIZED))
+OBJS_TESTS			= $(patsubst $(SRC_DIR)%.cpp,$(OBJ_DIR)%.o,$(SRCS_TESTS))
 
-$(NAME): $(OBJS) $(HEADERS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
+# LINKING TARGETS
 
+all: $(NAME_SINGLECORE) $(NAME_PARALLELLIZED) $(NAME_TESTS)
+
+# 1. Benchmark baseline, fast core and vector without parallelization
+$(NAME_SINGLECORE): $(OBJS_BASELINE) $(HEADERS)
+	$(CXX) $(CXXFLAGS) $(OPT_FLAGS) $(OBJS_BASELINE) -o $(NAME_SINGLECORE)
+
+# 2. Benchmark vector parallelized
+$(NAME_PARALLELLIZED): $(OBJS_PARALLELIZED) $(HEADERS)
+	$(CXX) $(CXXFLAGS) $(OPT_FLAGS) $(VEC_OPT_FLAGS) $(OBJS_PARALLELIZED) -o $(NAME_PARALLELLIZED)
+
+# 3. Testing Suite Target (tests.cpp only)
+$(NAME_TESTS): $(OBJS_TESTS) $(HEADERS)
+	$(CXX) $(CXXFLAGS) $(OPT_FLAGS) $(OBJS_TESTS) -o $(NAME_TESTS)
+
+# COMPILATION OF .o FILES
+
+# Generic rule for MOST .o files (NO OpenMP flags)
 $(OBJ_DIR)%.o: $(SRC_DIR)%.cpp $(HEADERS)
 	@mkdir -p $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(OPT_FLAGS) $(INCLUDES) -c $< -o $@
+
+# Specific rule for PARALLELIZED .o files (which DO need OpenMP)
+# 'make' is smart and will pick this more specific rule for $(OBJS_PARALLELIZED)
+$(OBJS_PARALLELIZED): $(OBJ_DIR)%.o: $(SRC_DIR)%.cpp $(HEADERS)
+	@mkdir -p $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(OPT_FLAGS) $(VEC_OPT_FLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
 	rm -rf $(OBJ_DIR)
 
 fclean: clean
-	rm -f $(NAME)
+	rm -f $(NAME_SINGLECORE) $(NAME_PARALLELLIZED) $(NAME_TESTS)
 
 re: fclean all
 
-.PHONY: all, clean, fclean, re
+.PHONY: all clean fclean re

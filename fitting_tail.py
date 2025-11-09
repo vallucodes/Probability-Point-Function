@@ -6,7 +6,7 @@ from numpy.linalg import lstsq, cond
 # samples: Training data samples amount
 # n: degree m/n
 # x_low, x_high: range for fitting
-def fitting(samples = 200, p = 8, x_low = 10e-16, x_high = 0.02):
+def fitting(samples = 200, p = 8, x_low = 1e-16, x_high = 0.02):
 	# Distribute samples using log spacing in range [10^-16, 0.002]
 	# using linear spacing in range ]0.002, 0.02]
 	samples_linear = samples // 3
@@ -23,10 +23,6 @@ def fitting(samples = 200, p = 8, x_low = 10e-16, x_high = 0.02):
 	xs_linear = np.linspace(start_linear, x_high, samples_linear, endpoint=True)
 	xs_linear = xs_linear[1:]
 	xs = np.concatenate((xs_log, xs_linear))
-
-	# print("xs log:", xs_log)
-	# print("xs linear:", xs_linear)
-	# print("xs:", xs)
 
 	# Build samples
 	A = []
@@ -54,32 +50,26 @@ def fitting(samples = 200, p = 8, x_low = 10e-16, x_high = 0.02):
 	A = np.array(A)
 	y = np.array(y)
 
-
-
 	# Add weights for samples nearing tail
 	weights = generate_weights(xs, x_low, x_high)
-	# print("weights:", weights)
 
 	A_w = A * weights[:, None]
 	y_w = y * weights
 
-	# Add ridge of lambda
-	lambda_val = 1e-1
+	# Add lambda for Ridge Regression
+	lambda_val = 0.1
 	P = A_w.shape[1]
 	I = np.eye(P)
 
 	A_lambda = np.vstack([A_w, np.sqrt(lambda_val) * I])
 	y_lambda = np.append(y_w, np.zeros(P))
 
-	condition_number = cond(A_w)
-	print(f"Condition Number of A: {condition_number:.2e}")
-	condition_number = cond(A_lambda)
-	print(f"Condition Number (lambda): {condition_number:.2e}")
+	# condition_number = cond(A_lambda)
+	# print(f"Condition Number (lambda): {condition_number:.2e}")
 
 	# Solve linear equations with least square method
 	theta, residuals, rank, s = np.linalg.lstsq(A_lambda, y_lambda, rcond=None)
 
-	# print("theta:", theta)
 	return theta, x_low, p
 
 # Generate weights for sample points at extreme tail and near-join points
@@ -124,20 +114,11 @@ def	validation(theta, x_low, x_high = 0.02):
 	z_approx_left = apply_approximation(xs_validation_left, theta)
 	error_left = z_real_left - z_approx_left
 
-
-	# Calculate x ∈ [0.98, 1 - 10e-16]
-	xs_validation_right = np.linspace(1 - x_high, 1 - x_low, 10000)
-	z_real_right = norm.ppf(xs_validation_right)
-	# Symmetry around 0.5 used: Φ^(-1)(x) = -Φ^(-1)(1 - x)
-	z_approx_right = -apply_approximation(1 - xs_validation_right, theta)
-	error_right = z_real_right - z_approx_right
-
 	# Error stats
-	print(f"Max absolute error left: {np.max(np.abs(error_left)):.2e}")
 	print(f"Mean absolute error left: {np.mean(np.abs(error_left)):.2e}")
+	print(f"99th percentile absolute error: {np.percentile(np.abs(error_left), 99):.2e}")
+	print(f"Max absolute error left: {np.max(np.abs(error_left)):.2e}")
 
-	# print(f"Max absolute error right: {np.max(np.abs(error_right)):.2e}")
-	# print(f"Mean absolute error right: {np.mean(np.abs(error_right)):.2e}")
 	return xs_validation_left, z_real_left, z_approx_left, error_left, x_high
 
 # Calculate P and Q using Horner's method
