@@ -143,10 +143,10 @@ void test_symmetry() {
 		if (x == 0.0)
 			continue;
 
-		double z1 = icn(x);
+		double z1 = -icn(x);
 		double z2 = icn(1.0 - x);
 
-		double diff = std::abs(z1 + z2);
+		double diff = std::abs(z1 - z2);
 		if (diff > max_diff)
 			max_diff = diff;
 	}
