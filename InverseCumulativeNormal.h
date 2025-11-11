@@ -40,15 +40,15 @@ public:
 		if (x > 0.5)
 			return -standard_value(1.0 - x);
 
-		// Piecewise structure left in place so you can drop in rational approximations.
-		if (x < x_low_ || x > x_high_) {
-			double z = tail_value_baseline(x);   // << replace with tail mapping + rational
+		// Piecewise structure for rational approximations
+		if (x < x_low_) {
+			double z = tail_value_baseline(x);
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
 			z = halley_refine(z, x);
 		#endif
 			return z;
 		} else {
-			double z = central_value_baseline(x); // << replace with central-region rational
+			double z = central_value_baseline(x);
 		#ifdef ICN_ENABLE_HALLEY_REFINEMENT
 			z = halley_refine(z, x);
 		#endif
@@ -76,7 +76,7 @@ private:
 	// Approximation for z using rational function in center
 	static inline double central_value_fast(double x) {
 		// Center region rational approximation (m = 8, n = 8)
-		// Valid for x in [0.5, 0.98]
+		// Valid for x in [0.02, 0.5]
 		constexpr std::array<double, 9> P_coeffs = {
 			2.5066285790664549e+00,
 			-3.0942024238971818e+01,

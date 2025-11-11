@@ -6,7 +6,12 @@ Starting error with fitting is small enough so that only 1 or 2 Halley steps is 
 
 Vector parallelization speedup is purely based on calculating multiple independent values simultaneuously with multiple cores.
 
+In given instructions there is mistake: this is not true for left tail: Φ(z) = 1 − Q(−z). For left tail this is true: Φ(z) = Q(-z).
+
 ## Build/run instructions
+
+Boost library for reference calculations
+`apt install libboost-all-dev`
 
 To run fitting python scripts \
 `python3 fitting_center.py` \

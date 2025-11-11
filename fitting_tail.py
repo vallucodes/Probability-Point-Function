@@ -7,7 +7,7 @@ from numpy.linalg import lstsq, cond
 # n: degree m/n
 # x_low, x_high: range for fitting
 def fitting(samples = 200, p = 8, x_low = 1e-16, x_high = 0.02):
-	# Distribute samples using log spacing in range [10^-16, 0.002]
+	# Distribute samples using log spacing in range [1e-16, 0.002]
 	# using linear spacing in range ]0.002, 0.02]
 	samples_linear = samples // 3
 	samples_log = samples - samples_linear
@@ -108,7 +108,7 @@ def generate_weights(xs, x_low, x_high):
 
 def	validation(theta, x_low, x_high = 0.02):
 
-	# Calculate x ∈ [10e-16, 0.02]
+	# Calculate x ∈ [1e-16, 0.02]
 	xs_validation_left = np.linspace(x_low, x_high, 10000)
 	z_real_left = norm.ppf(xs_validation_left)
 	z_approx_left = apply_approximation(xs_validation_left, theta)

@@ -171,7 +171,7 @@ def export(theta, x_low, x_high, n):
 	print("C++ COEFFICIENT EXPORT")
 	print("="*60)
 	print(f"\n// Center region rational approximation (m = {m}, n = {n})")
-	print(f"// Valid for x in [{x_low}, {x_high}]")
+	print(f"// Valid for x in [0.02, 0.5]")
 	print(f"constexpr std::array<double, {m + 1}> P_coeffs = {{")
 	for i, coef in enumerate(theta[:m+1]):
 		print(f"    {coef:.16e}{',' if i < m else ''}")
