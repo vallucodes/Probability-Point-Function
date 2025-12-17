@@ -184,7 +184,7 @@ def export(theta, x_low, x_high, n):
 def main():
 	theta, x_low, n = fitting()
 	xs_all, z_real_all, z_approx_all, error_all, x_high = validation(theta, x_low)
-	# plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
+	plot(xs_all, z_real_all, z_approx_all, error_all, x_low, x_high)
 	export(theta, x_low, x_high, n)
 
 if __name__ == "__main__":

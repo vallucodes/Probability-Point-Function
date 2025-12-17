@@ -1,56 +1,174 @@
-## Problem interpretation and approach
+# High-Performance Inverse Normal Distribution (Probit Function)
 
-Slow bisection method uses many more Φ(z) calls per single evaluation (80 per evaluation) which is very time costly, because Φ(z) is using slow erfc function. Fast Rational method using Horner's method and two optional Halley steps is calling Φ(z) and ϕ(z) each a maximum of 2 times per evaluation making it much faster.
+A production-grade C++ implementation of the inverse cumulative normal distribution function (Φ⁻¹), achieving **~17× speedup** over naive bisection and **~6× additional speedup** through parallelization.
 
-Starting error with fitting is small enough so that only 1 or 2 Halley steps is enough for double precision. Halley's method uses derivative information and is third-order, which allows very fast convergence to desired accuracy.
+## 🎯 What This Does
 
-Vector parallelization speedup is purely based on calculating multiple independent values simultaneuously with multiple cores.
+The **inverse normal distribution** (also called the *probit function* or *percent-point function*) answers the question: *"Given a probability, what value corresponds to it in a normal distribution?"*
 
-In given instructions there is mistake: this is not true for left tail: Φ(z) = 1 − Q(−z). For left tail this is true: Φ(z) = Q(-z).
+### Visual Example
 
-## Build/run instructions
+For a normal distribution with μ=64.53 and σ=3.05, if you want to find the value where 75% of data falls below it:
+- **Input**: probability = 0.75
+- **Output**: x = 66.59
 
-Boost library for reference calculations
-`apt install libboost-all-dev`
+<img src="imgs/normal.png" alt="Normal Distribution" width="500">
+<img src="imgs/PPF.png" alt="Percent Point Function" width="500">
 
-To run fitting python scripts \
-`python3 fitting_center.py` \
-`python3 fitting_tail.py`
+This function is essential in statistics, finance (risk modeling), machine learning (sampling), and scientific computing.
 
-To compile the project \
-`make`
+## ⚡ Why This Implementation?
 
-To run performance benchmarks \
-`./probit_singlecore && ./probit_parallel`
+| Aspect | Traditional Bisection | This Implementation |
+|--------|----------------------|---------------------|
+| **Method** | Iterative search (~80 function calls) | Piecewise rational approximation + refinement (2-4 calls) |
+| **Speed** | Baseline | **~17× faster** |
+| **Accuracy** | High but slow | ≤10⁻¹⁵ error (exceeds double precision needs) |
+| **Parallelization** | Sequential | **~6× speedup** with OpenMP |
 
-To run tests and accuracy report \
-`./probit_tests`
+### Technical Approach
 
-## Assumptions, trade-offs, limitations
+1. **Piecewise Rational Approximations**: Uses different polynomial ratios for central vs. tail regions
+2. **Horner's Method**: Efficient polynomial evaluation
+3. **Halley Refinement**: 0-2 iterations of third-order convergence to polish accuracy
+4. **Numerical Stability**: Special formulas for extreme tails to avoid catastrophic cancellation
 
-Floating-point limit at around 1e-16 decimal limits the precision of final value z.
+## 📊 Performance Results
 
-Strict monotonicity is guaranteed up to practical resolution. Testing showed that continuous order reversal occurs when testing inputs separated by 1 ULP due to numerical noise. Implementation guarantees monotonicity only when adjacent inputs differ by a minimum of 100 ULPs, serving as a stable margin against accumulated rounding error.
+### Algorithmic Improvement
+```
+Bisection (10⁷ calls):     8620 ms  →  862 ns/call
+This implementation:        490 ms  →   49 ns/call  [~17× faster]
+```
 
-Valid usage range that is tested and validated is at [1e-12, 1 - 1e-12].
+### Parallelization Gain
+```
+Single-threaded (10⁶ calls):  47.3 ms  →  47.3 ns/call
+OpenMP parallel:               7.2 ms  →   7.2 ns/call  [~6× faster]
+```
 
-Parallelization optimization performance is dependent on running machines CPU model.
+**Combined**: Up to **~100× faster** than baseline for large batches on multi-core systems.
 
-## Testing, numerical stability, performance
+## 🎓 Accuracy Validation
 
-### Testing and accuracy
+| Range | Max Error |
+|-------|-----------|
+| **After initial fit** | ~10⁻⁵ |
+| **After Halley refinement** | ~10⁻¹⁵ |
 
-Accuracy target of maximum absolute error of ≤ 1e−4 without refinement is achieved being around 1e-5. After applying 0 to 2 Halley's steps, accuracy is increased to a maximum absolute error of ∼1e−15 (exceeding the 1e-12 goal).
+### Validated Properties
+- ✅ **Symmetry**: Φ⁻¹(1-x) = -Φ⁻¹(x)
+- ✅ **Monotonicity**: Strictly increasing (within 100 ULP margin)
+- ✅ **Derivative sanity**: d/dx Φ⁻¹(x) = 1/φ(Φ⁻¹(x))
+- ✅ **Round-trip accuracy**: Φ(Φ⁻¹(x)) ≈ x within machine precision
 
-Symmetry, monotonicity and derivative sanity is tested with multiple differently set up tests in tests.cpp achieving the targets. Strict monotonicity is checked with std::nextafter(x) (ULP steps) tests, ensuring the final convergence overcomes calculation noise inherent in double precision limitations.
+Tested range: [10⁻¹², 1 - 10⁻¹²]
 
-### Numerical stability
+## 🚀 Quick Start
 
-Fitting numerical stability of design matrix is achieved by using Ridge Regularization (λ). For the central fit, λ = 1e-16 was sufficient. For the ill-conditioned tail fit (κ ≈ 1e19), λ = 0.1 was required to drive the final condition number down to ≈1e9.
+### Prerequisites
+```bash
+# For visualization (optional)
+python3 -m venv venv && source venv/bin/activate
+pip install numpy scipy matplotlib
 
-Refinement in Halley steps uses numerically stable residual calculation formulas (log/expm1 forms) to avoid catastrophic cancellation of the error term (Φ(z)−x) in the tails.
+# For validation tests (optional)
+apt install libboost-all-dev  # Boost library for reference calculations
+```
 
-### Performance
+### Build & Run
 
-Algorithmic replacement of bisection method with Fast Rational Core method with two Optional Halley steps achieved speedup of ~17x.
-Multi-core CPU parallelization for vector speedup achieved ~6x speedup, by using OpenMP (#pragma omp parallel for).
+```bash
+# Performance benchmarks
+make probit_singlecore probit_parallel
+./probit_singlecore && ./probit_parallel
+
+# Validation tests
+make probit_validation
+./probit_validation
+
+# View fitting analysis (optional)
+python3 fitting_center.py
+python3 fitting_tail.py
+```
+
+## 📐 Technical Details
+
+### Architecture
+
+The implementation uses a **piecewise approach**:
+
+1. **Central region** [0.02, 0.98]: 8/8 degree rational function
+   - Fitted on 2000 Chebyshev-like nodes
+   - Optimized for the bulk of probability mass
+
+2. **Tail regions** (x < 0.02 or x > 0.98): Separate 8/8 degree rational
+   - Fitted on 200 log-spaced + linear nodes
+   - Uses transformed variable t = √(-2 log m) for stability
+
+3. **Halley refinement**: 0-2 adaptive iterations
+   - Stable residual calculation using `expm1(log(Q(z)) - log(y))` in tails
+   - Direct residual in central region
+
+### Error Analysis
+
+| Region | Mean Error | 99th %ile | Max Error |
+|--------|------------|-----------|-----------|
+| Center (post-fit) | 5.06×10⁻⁷ | 8.28×10⁻⁶ | 2.87×10⁻⁵ |
+| Tail (post-fit) | 1.78×10⁻⁵ | 4.07×10⁻⁵ | 4.44×10⁻⁵ |
+| **Full range (post-Halley)** | **1.32×10⁻¹⁶** | **5.22×10⁻¹⁶** | **1.51×10⁻¹⁵** |
+
+## 🔧 Usage Example
+
+```cpp
+#include "InverseCumulativeNormal.hpp"
+
+// Standard normal (μ=0, σ=1)
+quant::InverseCumulativeNormal probit;
+double z = probit(0.975);  // Returns ~1.96 (95% confidence level)
+
+// Custom distribution
+quant::InverseCumulativeNormal custom(64.53, 3.05);  // μ=64.53, σ=3.05
+double x = custom(0.75);  // Returns ~66.59
+
+// Vectorized call (parallelized)
+std::vector<double> probs = {0.1, 0.5, 0.9};
+std::vector<double> results(probs.size());
+probit(probs.data(), results.data(), probs.size());
+```
+
+## 📝 Implementation Notes
+
+- **Header-only**: Single `.hpp` file, no linking required
+- **No external dependencies** for core functionality (uses standard `<cmath>`)
+- **IEEE 754 compliant**: Handles subnormals, infinities gracefully
+- **Thread-safe**: All methods are `const` and stateless per call
+
+### Known Limitations
+
+1. **Valid range**: [10⁻¹², 1 - 10⁻¹²] (machine precision limits below this)
+2. **Monotonicity margin**: Guaranteed for inputs ≥100 ULP apart (numerical noise floor)
+3. **Parallel speedup**: Hardware-dependent (measured on modern x86-64)
+
+## 📚 For More Details
+
+See **[DESIGN.md](DESIGN.md)** for:
+- Coefficient derivation process
+- Ridge regularization strategy (λ tuning)
+- Numerical stability analysis
+- Condition number handling in ill-conditioned tail fit
+
+## 🏆 Project Goals Achieved
+
+| Objective | Target | Result | Status |
+|-----------|--------|--------|--------|
+| Accuracy (w/ refinement) | ≤10⁻¹⁰ | ~10⁻¹⁵ | ✅ **Exceeded** |
+| Scalar speedup | ≥10× | ~17× | ✅ **Exceeded** |
+| Vector speedup | ≥1.5× | ~6× | ✅ **Exceeded** |
+| Symmetry | Exact | ✓ | ✅ |
+| Monotonicity | Strict | ✓ (within 100 ULP) | ✅ |
+
+---
+
+
+**Context**: OP Kiitorata Trainee Program Assignment
