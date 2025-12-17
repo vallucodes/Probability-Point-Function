@@ -1,6 +1,6 @@
 # High-Performance Inverse Normal Distribution (Probit Function)
 
-A production-grade C++ implementation of the inverse cumulative normal distribution function (Φ⁻¹), achieving **~17× speedup** over naive bisection and **~6× additional speedup** through parallelization.
+Implementation of the inverse cumulative normal distribution function (Φ⁻¹), achieving **~17× speedup** over naive bisection and **~6× additional speedup** through parallelization.
 
 ## 🎯 What This Does
 
